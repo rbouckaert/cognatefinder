@@ -19,15 +19,20 @@ public class ThresholdCF {
 		this.threshold = threshold;
 	}
 	
-	public List<Set<String>> classify(List<String> languages, List<String> words) {
-		int n = words.size();
+	public List<Set<String>> classifyTokens(List<String> languages, List<String[]> tokens) {
+		int n = tokens.size();
 		int[][] dist = new int[n][n];
 		for (int i = 0; i < n; i++) {
 			for (int j = i + 1; j < n; j++) {
-				dist[i][j] = distance(words.get(i), words.get(j));
+				dist[i][j] = tokendistance(tokens.get(i), tokens.get(j));
 			}
 		}
 		
+		List<Set<String>> lexemeMap = getSets(dist, n, languages);
+		return lexemeMap;
+	}
+
+	List<Set<String>> getSets(int [][] dist, int n, List<String> languages) {
 		int [] labels = new int[n];
 		for (int i = 0; i < n; i++) {
 			labels[i] = i;
@@ -71,6 +76,20 @@ public class ThresholdCF {
 		return lexemeMap;
 	}
 
+	public List<Set<String>> classify(List<String> languages, List<String> words) {
+		int n = words.size();
+		int[][] dist = new int[n][n];
+		for (int i = 0; i < n; i++) {
+			for (int j = i + 1; j < n; j++) {
+				dist[i][j] = distance(words.get(i), words.get(j));
+			}
+		}
+		
+		List<Set<String>> lexemeMap = getSets(dist, n, languages);
+		return lexemeMap;
+	}
+
+	
 	// LevenshteinDistance from https://commons.apache.org/proper/commons-text/jacoco/org.apache.commons.text.similarity/LevenshteinDistance.java.html
 	private static int distance(CharSequence left, CharSequence right) {
 		if (left == null || right == null) {
@@ -133,20 +152,82 @@ public class ThresholdCF {
 		return p[n];
 	}
 
+	private static int tokendistance(String[] left, String[] right) {
+		if (left == null || right == null) {
+			throw new IllegalArgumentException("Strings must not be null");
+		}
+
+		/*
+		 * This implementation use two variable to record the previous cost
+		 * counts, So this implementation use less memory than previous impl.
+		 */
+
+		int n = left.length; // length of left
+		int m = right.length; // length of right
+
+		if (n == 0) {
+			return m;
+		} else if (m == 0) {
+			return n;
+		}
+
+		if (n > m) {
+			// swap the input strings to consume less memory
+			final String [] tmp = left;
+			left = right;
+			right = tmp;
+			n = m;
+			m = right.length;
+		}
+
+		int[] p = new int[n + 1];
+
+		// indexes into strings left and right
+		int i; // iterates through left
+		int j; // iterates through right
+		int upperLeft;
+		int upper;
+
+		String rightJ; // jth character of right
+		int cost; // cost
+
+		for (i = 0; i <= n; i++) {
+			p[i] = i;
+		}
+
+		for (j = 1; j <= m; j++) {
+			upperLeft = p[0];
+			rightJ = right[j - 1];
+			p[0] = j;
+
+			for (i = 1; i <= n; i++) {
+				upper = p[i];
+				cost = left[i - 1].equals(rightJ) ? 0 : 1;
+				// minimum of cell to the left+1, to the top+1, diagonally left
+				// and up +cost
+				p[i] = Math.min(Math.min(p[i - 1] + 1, p[i] + 1), upperLeft + cost);
+				upperLeft = upper;
+			}
+		}
+		return p[n];
+	}
+	
+	
 	public static void main(String[] args) throws IOException {
 		String WORD = "belly";
-		//String data = BeautiDoc.load("/tmp/DravLex-2017-04-23.csv");
-		String data = BeautiDoc.load("/tmp/mikronesian.tsv");
+		String data = BeautiDoc.load("examples/DravLex-2017-04-23.csv");
+		//String data = BeautiDoc.load("examples/mikronesian.tsv");
 		String[] strs = data.split("\n");
 
 		// column for {cognate class, language, word} 
-		//int [] col = new int[]{1,2,3};
-		int [] col = new int[]{12,1,6};
+		int [] col = new int[]{1,2,3};
+		//int [] col = new int[]{12,1,6};
 		
 		WORD = "I";
 		int k = 1;
 		
-		
+		double sum = 0;
+		int wordcount = 0;
 		do {
 			List<String> langs = new ArrayList<>();
 			List<String> words = new ArrayList<>();
@@ -157,14 +238,15 @@ public class ThresholdCF {
 				String[] x = strs[k].split("\\s+");
 				String word = x[col[2]];
 				words.add(word);
-				langs.add(x[col[1]]);
+				String lang = x[col[1]]; 
+				langs.add(lang);
 				int label = Integer.parseInt(x[col[0]]);
 				labels.add(label);
 				if (map.containsKey(label)) {
-					map.get(label).add(word);
+					map.get(label).add(lang);
 				} else {
 					Set<String> set = new LinkedHashSet<>();
-					set.add(word);
+					set.add(lang);
 					map.put(label, set);
 				}
 				k++;
@@ -183,12 +265,16 @@ public class ThresholdCF {
 			}
 			double similarity = similarity(origSet, set);
 			System.out.println("similarity ("+WORD+")= " + similarity);
-			WORD = strs[k].substring(0, strs[k].indexOf('-'));
+			sum += similarity;
+			wordcount++;
+			if (k < strs.length)
+				WORD = strs[k].substring(0, strs[k].indexOf('-'));
 		} while (k < strs.length);
 		
+		System.out.println("Mean: " + sum / wordcount);
 	}
 
-	private static double similarity(List<Set<String>> origSet, List<Set<String>> altSet) {
+	public static double similarity(List<Set<String>> origSet, List<Set<String>> altSet) {
 		double sim = 0;
 		for (int i = 0; i < origSet.size(); i++) {
 			Set<String> org = origSet.get(i);
