@@ -19,7 +19,7 @@
 package bcf;
 
 
-import java.util.logging.Logger;
+import java.util.Arrays;
 
 /**
  * An implementation of the Smith-Waterman algorithm with Gotoh's improvement
@@ -90,8 +90,8 @@ public class SmithWatermanGotoh {
 	/**
 	 * Logger
 	 */
-	private static final Logger logger = Logger
-			.getLogger(SmithWatermanGotoh.class.getName());
+	//private static final Logger logger = Logger
+	//		.getLogger(SmithWatermanGotoh.class.getName());
 
 	/**
 	 * Aligns two sequences by Smith-Waterman algorithm
@@ -113,7 +113,7 @@ public class SmithWatermanGotoh {
 	 */
 	public static String [] align(String [] s1, String [] s2, Score matrix,
 			float o, float e) {
-		logger.info("Started...");
+		//logger.info("Started...");
 		long start = System.currentTimeMillis();
 		Score scores = matrix;
 
@@ -221,7 +221,7 @@ public class SmithWatermanGotoh {
 	private Cell construct(String [] s1, String [] s2, Score matrix, float o,
 			float e, byte[] pointers, short[] sizesOfVerticalGaps,
 			short[] sizesOfHorizontalGaps) {
-		logger.info("Started...");
+		//logger.info("Started...");
 		long start = System.currentTimeMillis();
 		
 		String[] a1 = s1;
@@ -232,27 +232,26 @@ public class SmithWatermanGotoh {
 
 		float f; // score of alignment x1...xi to y1...yi if xi aligns to yi
 		float[] g = new float[n]; // score if xi aligns to a gap after yi
-		float h; // score if yi aligns to a gap after xi
+		Arrays.fill(g, Float.NEGATIVE_INFINITY);
+
+		float h =  Float.NEGATIVE_INFINITY; // score if yi aligns to a gap after xi
+
 		float[] v = new float[n]; // best score of alignment x1...xi to y1...yi
+		Arrays.fill(v, 0f);
+
 		float vDiagonal;
 
-		g[0] = Float.NEGATIVE_INFINITY;
-		h = Float.NEGATIVE_INFINITY;
-		v[0] = 0;
-
-		for (int j = 1; j < n; j++) {
-			g[j] = Float.NEGATIVE_INFINITY;
-			v[j] = 0;
-		}
 
 		float similarityScore, g1, g2, h1, h2;
 
 		Cell cell = new Cell();
 
-		for (int i = 1, k = n; i < m; i++, k += n) {
+		int k = n;
+		for (int i = 1; i < m; i++) {
 			h = Float.NEGATIVE_INFINITY;
 			vDiagonal = v[0];
-			for (int j = 1, l = k + 1; j < n; j++, l++) {
+			int l = k + 1;
+			for (int j = 1; j < n; j++) {
 				similarityScore = matrix.score(a1[i - 1],a2[j - 1]);
 
 				// Fill the matrices
@@ -294,10 +293,12 @@ public class SmithWatermanGotoh {
 				if (v[j] > cell.getScore()) {
 					cell.set(i, j, v[j]);
 				}
+				l++;
 			}
+			k += n;
 		}
-		logger.info("Finished in " + (System.currentTimeMillis() - start)
-				+ " milliseconds");
+	//	logger.info("Finished in " + (System.currentTimeMillis() - start)
+	//			+ " milliseconds");
 		return cell;
 	}
 
@@ -321,7 +322,7 @@ public class SmithWatermanGotoh {
 	private String [] traceback(String [] s1, String [] s2, Score m,
 			byte[] pointers, Cell cell, short[] sizesOfVerticalGaps,
 			short[] sizesOfHorizontalGaps) {
-		logger.info("Started...");
+		//logger.info("Started...");
 		long start = System.currentTimeMillis();
 		
 		String[] a1 = s1;
@@ -408,8 +409,8 @@ public class SmithWatermanGotoh {
 //		alignment.setGaps(gaps);
 //		alignment.setSimilarity(similarity);
 
-		logger.info("Finished in " + (System.currentTimeMillis() - start)
-				+ " milliseconds");
+		//logger.info("Finished in " + (System.currentTimeMillis() - start)
+		//		+ " milliseconds");
 		return reverse(reversed3, len3);
 	}
 
@@ -453,5 +454,16 @@ public class SmithWatermanGotoh {
 			b[j] = a[i];
 		}
 		return b;
+	}
+	
+	
+	
+	
+	public static void main(String[] args) {
+		String [] w1 = "t ʃ a: ɾ a m".split(" ");
+		String [] w2 = "s a: m b a l".split(" ");
+		SCAScore matrix = new SCAScore();
+		String [] w3 = SmithWatermanGotoh.align(w1, w2, matrix, 0.7f, 0.8f);
+		System.out.println(Arrays.toString(w3));
 	}
 }

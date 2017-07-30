@@ -77,13 +77,17 @@ public class SCAScore extends Score {
 	private void process(int i, String string) {
 		for (String s : string.split(",")) {
 			charMap.put(s,  i);
+			charMap.put(s+":",  i);
 		}		
 	}
 
 	@Override
 	float score(String a, String b) {
-		int i = charMap.get(a);
-		int j = charMap.get(b);
+		Integer i = charMap.get(a);
+		Integer j = charMap.get(b);
+		if (i == null || j == null) {
+			throw new IllegalArgumentException("Character " + a + " or " + b + " was not mapped yet");
+		}
 		return (float) score[i][j];
 	}
 
