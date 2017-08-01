@@ -29,13 +29,13 @@ import java.util.Arrays;
  */
 
 public class SmithWatermanGotoh {
-	/**
-	 * Hidden constructor
-	 */
-	private SmithWatermanGotoh() {
+	public SmithWatermanGotoh() {
 		super();
 	}
 
+	private String [] aligned1, aligned2;
+	String [] getAligned1() {return aligned1;}
+	String [] getAligned2() {return aligned2;}
 	
 	public abstract class Directions {
 		/**
@@ -70,12 +70,12 @@ public class SmithWatermanGotoh {
 		/**
 		 * Markup line gap character
 		 */
-		public static final String GAP		= " ";
+		public static final String GAP		= "-";
 		
 		/**
 		 * Markup line mismatch character
 		 */
-		public static final String MISMATCH	= ".";
+		public static final String MISMATCH	= "x";
 	}
 	
 	public class Alignment {
@@ -111,13 +111,13 @@ public class SmithWatermanGotoh {
 	 * @see Sequence
 	 * @see Matrix
 	 */
-	public static String [] align(String [] s1, String [] s2, Score matrix,
+	public String [] align(String [] s1, String [] s2, Score matrix,
 			float o, float e) {
 		//logger.info("Started...");
 		long start = System.currentTimeMillis();
 		Score scores = matrix;
 
-		SmithWatermanGotoh sw = new SmithWatermanGotoh();
+//		SmithWatermanGotoh sw = new SmithWatermanGotoh();
 
 		int m = s1.length + 1;
 		int n = s2.length + 1;
@@ -140,9 +140,9 @@ public class SmithWatermanGotoh {
 			}
 		}
 
-		Cell cell = sw.construct(s1, s2, scores, o, e, pointers,
+		Cell cell = construct(s1, s2, scores, o, e, pointers,
 				sizesOfVerticalGaps, sizesOfHorizontalGaps);
-		String [] markupLine = sw.traceback(s1, s2, matrix, pointers, cell,
+		String [] markupLine = traceback(s1, s2, matrix, pointers, cell,
 				sizesOfVerticalGaps, sizesOfHorizontalGaps);
 //		alignment.setName1(s1.getId());
 //		alignment.setName2(s2.getId());
@@ -411,8 +411,13 @@ public class SmithWatermanGotoh {
 
 		//logger.info("Finished in " + (System.currentTimeMillis() - start)
 		//		+ " milliseconds");
+		aligned1 = reverse(reversed1, len1);
+		aligned2 = reverse(reversed2, len2);
+		//System.out.println(Arrays.toString(aligned1));
+		//System.out.println(Arrays.toString(aligned2));
 		return reverse(reversed3, len3);
 	}
+	
 
 	/**
 	 * Returns the maximum of 4 float numbers.
@@ -460,10 +465,16 @@ public class SmithWatermanGotoh {
 	
 	
 	public static void main(String[] args) {
-		String [] w1 = "t ʃ a: ɾ a m".split(" ");
-		String [] w2 = "s a: m b a l".split(" ");
+		String [] w1 = "x t ʃ a: ɾ a m x".split(" ");
+		String [] w2 = "x s a: m b a l x".split(" ");
+		w2 = "_ a a\" a: a:ʰ b bʰ c d dʰ e e: f g gʰ h i i: j k kʰ l m n o o: p p: r s t tʰ u u: v x y z ã ñ ā ē ī ō ū Ɛ ɖ ə ɭ ɲ ɳ ɻ ɽ ɾ ʂ ʃ ʈ ʋ ʒ ḍ ḻ ṅ ṇ ṉ ṛ ṟ ṣ ṭ ə: ʃ: ɖʰ ".split(" ");
+		// SmithWaterman align = new SmithWaterman(sub, d)
 		SCAScore matrix = new SCAScore();
-		String [] w3 = SmithWatermanGotoh.align(w1, w2, matrix, 0.7f, 0.8f);
+		SmithWatermanGotoh sw = new SmithWatermanGotoh();
+		String [] w3 = sw.align(w1, w2, matrix, -0.7f, -0.8f);
 		System.out.println(Arrays.toString(w3));
+		System.out.println(Arrays.toString(w1));
+		System.out.println(Arrays.toString(w2));
 	}
+
 }

@@ -43,6 +43,7 @@ public class SCAScore extends Score {
 	Map<String,Integer> charMap;
 	public SCAScore() {
 		charMap = new HashMap<>();		
+		process(1, "-");
 		/* 1 */ process(2, "₁₁,₂₂,¹¹,²²");
 		/* 2 */ process(3, "₁₂,₁₃,₁₄,₁₅,₂₃,₂₄,₂₅,₃₄,₃₅,₄₅,¹²,¹³,¹⁴,¹⁵,²³,²⁴,²⁵,³⁵,³⁴,⁴⁵");
 		/* 3 */ process(4, "₅₁,₅₂,₅₃,₅₄,₄₃,₄₂,₄₁,₃₂,₃₁,₂₁,⁵¹,⁵²,⁵³,⁵⁴,⁴¹,⁴²,⁴³,³¹,³²,²¹");
@@ -50,24 +51,24 @@ public class SCAScore extends Score {
 		/* 5 */ process(6, "₄₄,₅₅,⁵⁵,⁴⁴");
 		/* 6 */ process(7, "⁰,¹,²,³,⁴,⁵,⁻,₁,₂,₃,₄,˥,˦,˧,˨,₅,₆,₀");
 		/* 9 */ process(8, "∼");
-		/* A */ process(9, "a,ᴀ,ã,ɑ,á,á,à,ā,ǎ,â,ä,ă,ă,ạ,а,å,ạ");
+		/* A */ process(9, "a,ᴀ,ã,ɑ,á,á,à,ā,ǎ,â,ä,ă,ă,ạ,а,å,ạ,a\",a:ʰ");
 		/* B */ process(10, "ɸ,β,f,p͡f,p͜f,ƀ,p͡f,b͡v,pf,bv,v,ʙ,ḇ");
 		/* C */ process(11, "t͡s,t͜s,d͡z,d͜z,ʦ,ʣ,t͡ɕ,t͜ɕ,d͡ʑ,d͜ʑ,ʨ,ʥ,t͡ʃ,t͜ʃ,d͡ʒ,d͜ʒ,ʧ,ʤ,c,ɟ,t͡ʂ,t͜ʂ,d͡ʐ,d͜ʐ,č,t͡θ,t͜θ,ʄ,ǰ,ĵ,Ɉ,ʈʂ,ɖʐ,ʈʂʰ,tɕ,tɕʰ,dʑ,ts,dz,tsʰ");
 		/* D */ process(12, "θ,ð,ŧ,þ,đ,Ɵ");
-		/* E */ process(13, "ɛ,æ,ɜ,ɐ,ʌ,e,ᴇ,ə,ɘ,ɤ,è,é,ē,ě,ê,ɚ,ǝ,ẽ,ĕ,ḛ,ε,е,ę,ḛ,ȇ,ë,ε");
+		/* E */ process(13, "ɛ,æ,ɜ,ɐ,ʌ,e,ᴇ,ə,ɘ,ɤ,è,é,ē,ě,ê,ɚ,ǝ,ẽ,ĕ,ḛ,ε,е,ę,ḛ,ȇ,ë,ε,Ɛ");
 		/* G */ process(14, "x,ɣ,χ");
 		/* H */ process(15, "ʔ,ħ,ʕ,h,ɦ,ḥ,Ɂ,ʡ,'ʷ");
 		/* I */ process(16, "i,ɪ,ɨ,ɿ,ʅ,ɯ,ĩ,í,ǐ,ì,î,ī,ı,ĭ,ḭ,ɩ,ï,ị,ๅ,ḭ");
 		/* J */ process(17, "j,ɥ,ɰ");
-		/* K */ process(18, "k,g,q,ɢ,ɡ,ḳ,ǥ,ǵ,ḡ");
-		/* L */ process(19, "l,ȴ,l,ɭ,ʎ,ʟ,ɬ,ɮ,ł,ɫ,ḷ,ļ");
+		/* K */ process(18, "k,g,q,ɢ,ɡ,ḳ,ǥ,ǵ,ḡ,gʰ,kʰ");
+		/* L */ process(19, "l,ȴ,l,ɭ,ʎ,ʟ,ɬ,ɮ,ł,ɫ,ḷ,ļ,ḻ");
 		/* M */ process(20, "m,ɱ,ʍ,ṃ");
-		/* N */ process(21, "n,ȵ,ɳ,ŋ,ɴ,ň,ń,ɲ,ñ,ṇ,ῃ,ņ,ṋ");
+		/* N */ process(21, "n,ȵ,ɳ,ŋ,ɴ,ň,ń,ɲ,ñ,ṇ,ῃ,ņ,ṋ,ṅ,ṉ");
 		/* O */ process(22, "Œ,ɒ");
-		/* P */ process(23, "p,b,ɓ,ᵐb,ᵐp,р");
-		/* R */ process(24, "ɹ,ɻ,ʀ,ɾ,r,ʁ,ɽ,ɐ̯,ɺ,ṛ,ᵲ,ř,ȓ,ṛ́,ṙ");
+		/* P */ process(23, "p,b,ɓ,ᵐb,ᵐp,р,bʰ");
+		/* R */ process(24, "ɹ,ɻ,ʀ,ɾ,r,ʁ,ɽ,ɐ̯,ɺ,ṛ,ᵲ,ř,ȓ,ṛ́,ṙ,ṟ");
 		/* S */ process(25, "s,z,ʃ,∫,ʒ,ʂ,ʐ,ç,ʝ,š,ž,ɕ,ɧ,ʑ,ś,ṣ,ß,ŝ,ż,ẓ");
-		/* T */ process(26, "t,d,ȶ,ȡ,ɗ,ʈ,ɖ,ţ,т,ṱ,ṭ,ḍ,ḏ");
+		/* T */ process(26, "t,d,ȶ,ȡ,ɗ,ʈ,ɖ,ţ,т,ṱ,ṭ,ḍ,ḏ,dʰ,tʰ,ɖʰ");
 		/* U */ process(27, "œ,ɞ,ɔ,ø,ɵ,o,õ,ó,ò,ō,ɶ,ô,ɷ,ǒ,ö,ŏ,ʮ,ọ,ȯ,ố,ǫ,ṍ");
 		/* W */ process(28, "w,ʋ,ⱱ,ṿ,υ,ṽ");
 		/* Y */ process(30, "y,ỹ,ỹ,ṳ,ṵ,ʏ,ʉ,u,ᴜ,ʊ,ú,ù,ũ,ü,ŭ,ǔ,ụ,ū,ỳ,û,û,ý,ў,ȗ,ṹ");
@@ -88,7 +89,24 @@ public class SCAScore extends Score {
 		if (i == null || j == null) {
 			throw new IllegalArgumentException("Character " + a + " or " + b + " was not mapped yet");
 		}
+		if (i == j) {
+			if (a.equals(b)) {
+				return (float) score[i][j];
+			} else {
+				return (float) score[i][j] - 0.01f;
+			}
+		}
 		return (float) score[i][j];
 	}
+	
+	@Override
+	public int getCode(String character) {
+		Integer i = charMap.get(character);
+		if (i == null) {
+			return -1;
+		}
+		return i;
+	}
 
+		
 }
