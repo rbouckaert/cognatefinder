@@ -34,8 +34,8 @@ public class TSVImporter {
 		for (int i = 0; i < strs.length - 1; i++) {
 			String [] s = strs[i+1].split("\t");
 			if (s.length != labels.length) {
-				Log.warning("Line " + (i+2) + " does not have the same number of columns as the header: "
-						+ "expected " + labels.length + " but got " + s.length);
+//				Log.warning("Line " + (i+2) + " does not have the same number of columns as the header: "
+//						+ "expected " + labels.length + " but got " + s.length);
 			}
 			for (int j = 0; j < s.length; j++) {
 				datacolumns[j][i] = s[j];

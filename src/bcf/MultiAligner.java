@@ -14,10 +14,10 @@ public class MultiAligner {
 	Score matrix;
 	
 	public Seq [] align(String [] ids, String [][] seqs, Score matrix,
-			float o, float e) {
+			float openGapPenaly, float extendGapPenalty) {
 		int n = seqs.length;
-		this.o = o;
-		this.e = e;
+		this.o = openGapPenaly;
+		this.e = extendGapPenalty;
 		this.matrix = matrix;
 		
 		// calculate distance matrix
@@ -25,7 +25,7 @@ public class MultiAligner {
 		pairAligner = new SmithWatermanGotoh();
 		for (int i = 0; i < n ; i++) {
 			for (int j = i + 1; j < n; j++) {
-				pairAligner.align(seqs[i], seqs[j], matrix, o, e);
+				pairAligner.align(seqs[i], seqs[j], matrix, openGapPenaly, extendGapPenalty);
 				distances[i][j] = 1.0/matrix.score(pairAligner.getAligned1(), pairAligner.getAligned2(), o);
 				distances[j][i] = distances[i][j];
 			}
@@ -147,6 +147,42 @@ s = new String[]{
 		"k a ɖ i ",
 		"k a ɖ i "
 	};
+
+s = new String[] {"a u",
+		"a u",
+		"a u",
+		"a u",
+		"a ʔ u",
+		"a u",
+		"v a u",
+		"o u",
+		"a u",
+		"k a u",
+		"a u",
+		"a v a u",
+		"v a u",
+		"a u",
+		"k a u",
+		"k a u",
+		"a u",
+		"a u",
+		"a ŋ a u",
+		"a u",
+		"a u",
+		"a u",
+		"k a u",
+		"k a u",
+		"k o a u",
+		"a u",
+		"a u",
+		"k o a u",
+		"a u",
+		"a k u",
+		"k o u",
+		"a β a u",
+		"n a u",
+		"v a u"};
+
 	SCAScore matrix = new SCAScore();
 	Seq [] seqs = multiAlign(s, matrix, 5f, -1f);
 	for (Seq seq : seqs) {
@@ -164,7 +200,7 @@ s = new String[]{
 	}
 
 
-	public static Seq [] multiAlign(String[] s, Score matrix, float o, float e) {
+	public static Seq [] multiAlign(String[] s, Score matrix, float openGapPenalty, float extendGapPenalty) {
 		String[][] seqs = new String[s.length][];
 		String [] ids = new String[s.length];
 		for (int i = 0; i < s.length; i++) {
@@ -173,7 +209,7 @@ s = new String[]{
 		}
 		
 		MultiAligner sw = new MultiAligner();
-		return sw.align(ids, seqs, matrix, o, e);
+		return sw.align(ids, seqs, matrix, openGapPenalty, extendGapPenalty);
 	}
 
 }

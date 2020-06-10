@@ -15,7 +15,12 @@ public class TSV2Nexus extends Runnable {
 			new File("file.tsv"));
 	public Input<OutFile> outputInput = new Input<>("out", "output file, or stdout if not specified",
 			new OutFile("[[none]]"));
-
+	public Input<Float> extendGapPenaltyInput = new Input<>("egp","extend gap penalty used in aligning sequences. "
+			+ "These can be tuned to minimise the nr of unhappy (containing both vowels and consonants) columns", 3.75f); 
+	public Input<Float> openGapPenaltyInput = new Input<>("ogp","open gap penalty used in aligning sequences. "
+			+ "These can be tuned as togetehr with egp input", -0.8f); 
+	
+	
 	Score matrix;
 
 	@Override
@@ -70,7 +75,7 @@ public class TSV2Nexus extends Runnable {
 		
 		// align individual cogids
 		for (int i = 0; i < cognateCount; i++) {
-			alignCognate(seqs[i]);
+			alignCognate(seqs[i], extendGapPenaltyInput.get(), openGapPenaltyInput.get());
 		}
 		
 		// convert cognate alignments to sequences
@@ -194,7 +199,7 @@ public class TSV2Nexus extends Runnable {
 		throw new IllegalArgumentException("Cannot find doculect " + doculect + " in docIds");
 	}
 
-	protected void alignCognate(List<C> list) {
+	protected void alignCognate(List<C> list, float openGapPenalty, float extendGapPenalty) {
 		if (list == null) {
 			return;
 		}
@@ -206,7 +211,7 @@ public class TSV2Nexus extends Runnable {
 		for (int i = 0; i < s.length; i++) {
 			s[i] = list.get(i).token;
 		};
-		Seq [] seqs = MultiAligner.multiAlign(s, matrix, 5f, -1f);
+		Seq [] seqs = MultiAligner.multiAlign(s, matrix, openGapPenalty, extendGapPenalty);
 		for (int i = 0; i < s.length; i++) {
 			list.get(i).aligned = seqs[i];
 		}

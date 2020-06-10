@@ -1,13 +1,9 @@
 package bcf;
 
-import java.io.File;
 import java.io.PrintStream;
 import java.util.*;
 
 import beast.app.util.Application;
-import beast.app.util.OutFile;
-import beast.core.Input;
-import beast.core.Runnable;
 import beast.core.util.Log;
 
 /**
@@ -63,7 +59,8 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		// align individual cogids
 		for (int i = 0; i < cognateCount; i++) {
-			alignCognate(seqs[i]);
+			alignCognate(seqs[i], extendGapPenaltyInput.get(), openGapPenaltyInput.get());
+			//alignCognate(seqs[i], 3.75f, -0.8f);
 		}
 		
 		// convert cognate alignments to sequences
@@ -92,11 +89,19 @@ public class TSV2JSON extends TSV2Nexus {
 			start[j] = len + (j>0?start[j-1] : 0);
 			j++;
 		}
-//		int len = 0;
-//		for (int i = 0; i < cognateCount; i++) {
-//			len +=  toCharSeqs(seqs[i], docIds, charSeqs);
-//		}
 				
+		
+		Set<String> phonemes = new LinkedHashSet<>();
+		Set<String> vowels = new LinkedHashSet<>();
+		Set<String> consonants = new LinkedHashSet<>();
+		
+		String [] sequence = new String[docIds.length];
+		for (int i = 0; i < docIds.length; i++) {
+			sequence[i] = cleanUp(charSeqs[i].toString());
+		}
+
+		separateVowelsAndConsonants(sequence);
+
 		
 		// output results
 		StringBuilder buf = new StringBuilder();
@@ -109,16 +114,26 @@ public class TSV2JSON extends TSV2Nexus {
 			out = new PrintStream(outputInput.get());
 		}
 
+		
+		
 		for (int i = 0; i < docIds.length; i++) {
 			buf.append("<sequence taxon='" + docIds[i] + "' ");
 			if (docIds[i].length() < 25) {
 				buf.append("                         ".substring(docIds[i].length()));
 			}
 			buf.append("value='");
-			buf.append(cleanUp(charSeqs[i].toString()));
+			getPhonemes(sequence[i], phonemes, vowels, consonants);
+			
+			buf.append(sequence[i]);
 			buf.append("'/>\n");
 		}
 		buf.append("\",\n");
+		
+		buf.append("// _. = gap between words, .. = other cognate, -. = gap due to alignment\n");
+		appendDataType(phonemes, "phonemes", buf);
+		appendDataType(vowels, "vowels", buf);
+		appendDataType(consonants, "consonants", buf);
+
 		buf.append("\"filters\":\"\n");
 		for (int i = 0; i < concepts.size(); i++) {
 				buf.append("<data id='" + concept[i] +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1] : 1)+"-"+start[i]+"'/>\n");
@@ -131,20 +146,113 @@ public class TSV2JSON extends TSV2Nexus {
 
 	}
 
-	private Object cleanUp(String string) {
-		string = string.replaceAll("ʰn","n_");
-		string = string.replaceAll("ʰs","s_");
-		string = string.replaceAll("lʰ","l_");
-		string = string.replaceAll("pʰ","p_");
-		string = string.replaceAll("ᵐb","b_");
+	private void separateVowelsAndConsonants(String[] sequences) {
+		int unhappyColumns = 0;
+		for (int i = 0; i < sequences[0].length(); i+=2) {
+			int isVowel = 0;
+			int isCons = 0;
+			for (int j = 0; j < sequences.length; j++) {
+				char c = sequences[j].charAt(i);
+				if ("aeoiuy".indexOf(c)>=0) {
+					isVowel++;
+				}
+				if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
+					isCons++;
+				}
+			}
+			if (isVowel>0 && isCons>0) {
+				Map<String, Integer> set = new HashMap<>();
+				for (int j = 0; j < sequences.length; j++) {
+					String s = sequences[j].charAt(i) + "";
+					if (!set.containsKey(s)) {
+						set.put(s, 0);
+					}
+					set.put(s, set.get(s) + 1);
+				}
+				String str = "[";
+				for (String s : set.keySet()) {
+					str += s + "(" + set.get(s) + ") ";
+				}
+				str += "]";				
+				Log.warning("Unhappy at column " + i + " " + isVowel + " " + isCons + " " + str);
+				unhappyColumns++;
+				
+				// repair
+				if (isVowel < isCons) {
+					for (int j = 0; j < sequences.length; j++) {
+						char c = sequences[j].charAt(i);
+						if ("aeoiuy".indexOf(c)>=0) {
+							sequences[j] = sequences[j].substring(0, i) + "-." + sequences[j].substring(i+2); 
+						}
+					}					
+				} else {
+					for (int j = 0; j < sequences.length; j++) {
+						char c = sequences[j].charAt(i);
+						if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
+							sequences[j] = sequences[j].substring(0, i) + "-." + sequences[j].substring(i+2); 
+						}
+					}					
+				}
+			}
+		}
+		
+		Log.warning(unhappyColumns + " unhappy columns");
+		if (unhappyColumns > 0) {
+			Log.warning("Repaired unhappy columns");
+			// sanity check: should have 0 unhappy columns
+			separateVowelsAndConsonants(sequences);
+		}
+	}
 
-		string = string.replaceAll("tʃ","s_");
-		string = string.replaceAll("ʰl","l_");
-		string = string.replaceAll("kʰ","k_");
+
+	private void appendDataType(Set<String> phonemes, String id, StringBuilder buf) {
+		String [] phonemes_ = phonemes.toArray(new String[]{});
+		buf.append("\"datatype_"+id+"\":\"<dataType id='" + id + "' spec='UserDataType' states='" + phonemes_.length + "' codelength='2' codeMap='");
+		Arrays.sort(phonemes_);
+		int i = 0;
+		for (String s : phonemes_) {
+			buf.append(s + "=" + i);
+			if (i < phonemes_.length-1) {
+				buf.append(",");
+			}
+			i++;
+		}
+ 		buf.append("'/>\",\n");
+		
+	}
+
+
+	private void getPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants) {
+		for (int i = 0; i < sequence.length(); i+= 2) {
+			String phoneme = sequence.substring(i, i+2);
+			phonemes.add(phoneme);
+			char c = phoneme.charAt(0);
+			if ("aeoiuy".indexOf(c)>=0) {
+				vowels.add(phoneme);
+			} else {
+				consonants.add(phoneme);
+				if (phoneme.equals("..") || phoneme.equals("-.") || phoneme.equals("_.")) {
+					vowels.add(phoneme);
+				}
+			}
+		}
+	}
+
+
+	private String cleanUp(String string) {
+		string = string.replaceAll("ʰn","n.");
+		string = string.replaceAll("ʰs","s.");
+		string = string.replaceAll("lʰ","l.");
+		string = string.replaceAll("pʰ","p.");
+		string = string.replaceAll("ᵐb","b.");
+
+		string = string.replaceAll("tʃ","s.");
+		string = string.replaceAll("ʰl","l.");
+		string = string.replaceAll("kʰ","k.");
 		string = string.replaceAll("ɣ","g");
-		string = string.replaceAll("ʰm","m_");
+		string = string.replaceAll("ʰm","m.");
 
-		string = string.replaceAll(" ","_");
+		string = string.replaceAll(" ",".");
 		string = string.replaceAll("\\+","_");
 
 		return string;
@@ -166,20 +274,24 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		
 		int newLen = charSeqs[0].length() + 2 * len;
+		boolean [] done = new boolean[charSeqs.length];
 		for (C c : list) {
 			int docId = indexOf(c.doculect, docIds);
-			for (int i = 1; i < c.aligned.characters.length - 1; i++) {
-				String s = c.aligned.characters[i];
-				charSeqs[docId].append(s);
-				if (s.length() < 2) {
-					charSeqs[docId].append(' ');
+			if (!done[docId]) {
+				done[docId] = true;
+				for (int i = 1; i < c.aligned.characters.length - 1; i++) {
+					String s = c.aligned.characters[i];
+					charSeqs[docId].append(s);
+					if (s.length() < 2) {
+						charSeqs[docId].append(' ');
+					}
 				}
 			}
 		}
 
 		for (int i = 0; i < charSeqs.length; i++) {
 			while (charSeqs[i].length() < newLen) {
-				charSeqs[i].append("O ");
+				charSeqs[i].append(". ");
 			}
 		}
 		return len;
