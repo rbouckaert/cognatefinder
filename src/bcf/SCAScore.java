@@ -42,7 +42,6 @@ public class SCAScore extends Score {
 			};
 
 			
-	Map<String,Integer> charMap;
 	public SCAScore() {
 		charMap = new HashMap<>();		
 		process(1, "-");
@@ -73,42 +72,13 @@ public class SCAScore extends Score {
 		/* T */ process(26, "t,d,ȶ,ȡ,ɗ,ʈ,ɖ,ţ,т,ṱ,ṭ,ḍ,ḏ,dʰ,tʰ,ɖʰ");
 		/* U */ process(27, "œ,ɞ,ɔ,ø,ɵ,o,õ,ó,ò,ō,ɶ,ô,ɷ,ǒ,ö,ŏ,ʮ,ọ,ȯ,ố,ǫ,ṍ,oː");
 		/* W */ process(28, "w,ʋ,ⱱ,ṿ,υ,ṽ");
+		/* X */// process(29, ""); ??
 		/* Y */ process(30, "y,ỹ,ỹ,ṳ,ṵ,ʏ,ʉ,u,ᴜ,ʊ,ú,ù,ũ,ü,ŭ,ǔ,ụ,ū,ỳ,û,û,ý,ў,ȗ,ṹ,uː");
 		/* _ */ process(31, "_,#,+,◦,·");
+		
+		setScore(score);
 	}
 	
-	private void process(int i, String string) {
-		for (String s : string.split(",")) {
-			charMap.put(s,  i);
-			charMap.put(s+":",  i);
-		}		
-	}
-
-	@Override
-	float score(String a, String b) {
-		Integer i = charMap.get(a);
-		Integer j = charMap.get(b);
-		if (i == null || j == null) {
-			throw new IllegalArgumentException("Character " + a + " or " + b + " was not mapped yet");
-		}
-		if (i == j) {
-			if (a.equals(b)) {
-				return (float) score[i][j];
-			} else {
-				return (float) score[i][j] - 0.01f;
-			}
-		}
-		return (float) score[i][j];
-	}
-	
-	@Override
-	public int getCode(String character) {
-		Integer i = charMap.get(character);
-		if (i == null) {
-			return -1;
-		}
-		return i;
-	}
 
 		
 }
