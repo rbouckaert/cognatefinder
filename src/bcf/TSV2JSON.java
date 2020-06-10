@@ -10,33 +10,18 @@ import beast.core.Input;
 import beast.core.Runnable;
 import beast.core.util.Log;
 
-public class TSV2Nexus extends Runnable {
-	public Input<File> tsvInput = new Input<>("tsv", "TSV file with cognate data",
-			new File("file.tsv"));
-	public Input<OutFile> outputInput = new Input<>("out", "output file, or stdout if not specified",
-			new OutFile("[[none]]"));
-
-	Score matrix;
+/**
+ * Creates JSON file from word list
+ * with aligned phoneme sequences
+ *
+ */
+public class TSV2JSON extends TSV2Nexus {
 
 	@Override
 	public void initAndValidate() {
 		matrix = new SCAScore();
 	}
 
-	class C {
-		String token;
-		String doculect;
-		Seq aligned;
-		
-		C(String token, String doculect) {
-			this.token = token;
-			this.doculect = doculect;
-		}
-		@Override
-		public String toString() {
-			return aligned.toString();
-		}
-	}
 	
 	@Override
 	public void run() throws Exception {
@@ -47,11 +32,19 @@ public class TSV2Nexus extends Runnable {
 		
 		String [] token = importer.getColumn("TOKENS");
 		int [] cogid = importer.getColumnAsInt("COGID");
+		String [] conceptList = importer.getColumn("CONCEPT");
 		String [] doculect = importer.getColumn("DOCULECT");
 		Set<String> doculects = new LinkedHashSet<>();
 		for (String s : doculect) {
 			doculects.add(s);
 		}
+		Set<String> concepts = new LinkedHashSet<>();
+		for (String s : conceptList) {
+			concepts.add(s);
+		}
+		String [] concept = concepts.toArray(new String[]{});
+		Arrays.sort(concept);
+		
 		int cognateCount = 0;
 		for (int d : cogid) {
 			cognateCount = Math.max(d, cognateCount);
@@ -79,22 +72,36 @@ public class TSV2Nexus extends Runnable {
 			charSeqs[i] = new StringBuilder();
 		}
 		String [] docIds = doculects.toArray(new String[]{});
-		int len = 0;
-		for (int i = 0; i < cognateCount; i++) {
-			len +=  toCharSeqs(seqs[i], docIds, charSeqs);
+		int [] start = new int[concepts.size()];
+		
+		boolean [] done = new boolean[cognateCount];
+		
+		
+		int j = 0;
+		for (String c : concept) {
+			int len = 0;
+			for (int k = 0; k < conceptList.length; k++) {
+				if (conceptList[k].equals(c)) {
+					int i = cogid[k];
+					if (!done[i]) {
+						len +=  toCharSeqs(seqs[i], docIds, charSeqs);
+						done[i] = true;
+					}
+				}
+			}
+			start[j] = len + (j>0?start[j-1] : 0);
+			j++;
 		}
-		
-		// convert character sequences to standard sequences
-		charSeqs = standardiseCharSeqs(charSeqs);
-		
+//		int len = 0;
+//		for (int i = 0; i < cognateCount; i++) {
+//			len +=  toCharSeqs(seqs[i], docIds, charSeqs);
+//		}
+				
 		
 		// output results
 		StringBuilder buf = new StringBuilder();
-		buf.append("#NEXUS\n");
-		buf.append("BEGIN DATA;\n");
-		buf.append("DIMENSIONS NTAX=" + doculects.size() + " NCHAR=" + len + ";\n");
-		buf.append("FORMAT DATATYPE=STANDARD MISSING=? GAP=-  SYMBOLS=\"0123456789\";\n");
-		buf.append("MATRIX\n");
+		buf.append("{");
+		buf.append("\"sequences\":\"\n");
 
 		PrintStream out = System.out;
 		if (outputInput.get() != null && !outputInput.get().getName().equals("[[none]]")) {
@@ -103,14 +110,20 @@ public class TSV2Nexus extends Runnable {
 		}
 
 		for (int i = 0; i < docIds.length; i++) {
-			buf.append(docIds[i] + " ");
+			buf.append("<sequence taxon='" + docIds[i] + "' ");
 			if (docIds[i].length() < 25) {
 				buf.append("                         ".substring(docIds[i].length()));
 			}
-			buf.append(charSeqs[i].toString());
-			buf.append("\n");
+			buf.append("value='");
+			buf.append(cleanUp(charSeqs[i].toString()));
+			buf.append("'/>\n");
 		}
-		buf.append(";\nend;\n");
+		buf.append("\",\n");
+		buf.append("\"filters\":\"\n");
+		for (int i = 0; i < concepts.size(); i++) {
+				buf.append("<data id='" + concept[i] +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1] : 1)+"-"+start[i]+"'/>\n");
+		}		
+		buf.append("\"\n}\n");
 		
 		out.println(buf.toString());
 
@@ -118,38 +131,25 @@ public class TSV2Nexus extends Runnable {
 
 	}
 
-	private StringBuilder[] standardiseCharSeqs(StringBuilder[] charSeqs) {
-		StringBuilder[] newSeqs= new StringBuilder[charSeqs.length];
-		for (int i = 0; i < newSeqs.length; i++) {
-			newSeqs[i] = new StringBuilder();
-		}
-		int n = charSeqs[0].length()/2;
-		for (int i = 0; i < n; i++) {
-			Map<String, Integer> map = new HashMap<>();
-			map.put("- ", 0);
-			for (int j = 0; j < charSeqs.length; j++) {
-				String s = charSeqs[j].substring(i*2, i*2+2);
-				if (!s.equals("? ")) {
-					if (!map.containsKey(s)) {
-						map.put(s, map.size());
-					}
-				}
-			}
-			if (map.size() > 1) {
-	 			for (int j = 0; j < charSeqs.length; j++) {
-					String s = charSeqs[j].substring(i*2, i*2+2);
-					if (s.equals("? ")) {
-						newSeqs[j].append("0");
-					} else {
-						newSeqs[j].append(1+map.get(s));
-					}
-					//newSeqs[j].append(" ");
-				}
-			}
-		}
+	private Object cleanUp(String string) {
+		string = string.replaceAll("ʰn","n_");
+		string = string.replaceAll("ʰs","s_");
+		string = string.replaceAll("lʰ","l_");
+		string = string.replaceAll("pʰ","p_");
+		string = string.replaceAll("ᵐb","b_");
 
-		return newSeqs;
+		string = string.replaceAll("tʃ","s_");
+		string = string.replaceAll("ʰl","l_");
+		string = string.replaceAll("kʰ","k_");
+		string = string.replaceAll("ɣ","g");
+		string = string.replaceAll("ʰm","m_");
+
+		string = string.replaceAll(" ","_");
+		string = string.replaceAll("\\+","_");
+
+		return string;
 	}
+
 
 	private int toCharSeqs(List<C> list, String[] docIds, StringBuilder [] charSeqs) {
 		if (list == null) {
@@ -179,40 +179,14 @@ public class TSV2Nexus extends Runnable {
 
 		for (int i = 0; i < charSeqs.length; i++) {
 			while (charSeqs[i].length() < newLen) {
-				charSeqs[i].append("? ");
+				charSeqs[i].append("O ");
 			}
 		}
 		return len;
 	}
 
-	protected int indexOf(String doculect, String[] docIds) {
-		for (int i = 0; i < docIds.length; i++) {
-			if (docIds[i].equals(doculect)) {
-				return i;
-			}
-		}
-		throw new IllegalArgumentException("Cannot find doculect " + doculect + " in docIds");
-	}
-
-	protected void alignCognate(List<C> list) {
-		if (list == null) {
-			return;
-		}
-		if (list.size() == 1) {
-			C c = list.get(0);
-			c.aligned = new Seq(c.token.split(" "), matrix);
-		}
-		String [] s = new String[list.size()];
-		for (int i = 0; i < s.length; i++) {
-			s[i] = list.get(i).token;
-		};
-		Seq [] seqs = MultiAligner.multiAlign(s, matrix, 5f, -1f);
-		for (int i = 0; i < s.length; i++) {
-			list.get(i).aligned = seqs[i];
-		}
-	}
 
 	public static void main(String[] args) throws Exception {
-		new Application(new TSV2Nexus(), "TSV to Nexus converter", args);
+		new Application(new TSV2JSON(), "TSV to JSON converter", args);
 	}
 }

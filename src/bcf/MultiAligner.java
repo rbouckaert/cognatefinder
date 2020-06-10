@@ -1,5 +1,7 @@
 package bcf;
 
+import java.util.Arrays;
+
 import beast.evolution.alignment.Taxon;
 import beast.evolution.alignment.TaxonSet;
 import beast.evolution.alignment.distance.Distance;
@@ -128,6 +130,13 @@ public class MultiAligner {
 					"p a ʈ ʈ e",
 					"p a ṭ ṭ a"};
 			
+			s = new String[]{"ʋ a j a ɾ ə ",
+					"v a y i ṟ u ",
+					"p i ɾ ",
+					"b a n d ʒ i ",
+					"b a i ɾ u ",
+					"b a: ɾ ə "
+			};
 s = new String[]{
 		"k a ɖ i",
 		"k a a t _ k a n n i n g ",
@@ -138,16 +147,11 @@ s = new String[]{
 		"k a ɖ i ",
 		"k a ɖ i "
 	};
-s = new String[]{"ʋ a j a ɾ ə ",
-		"v a y i ṟ u ",
-		"p i ɾ ",
-		"b a n d ʒ i ",
-		"b a i ɾ u ",
-		"b a: ɾ ə "
-};
 	SCAScore matrix = new SCAScore();
-			multiAlign(s, matrix, 5f, -1f);
-
+	Seq [] seqs = multiAlign(s, matrix, 5f, -1f);
+	for (Seq seq : seqs) {
+		System.out.println(Arrays.toString(seq.characters));
+	}
 			
 //			String [] w1 = "x t ʃ a: ɾ a m x".split(" ");
 //			String [] w2 = "x s a: m b a l x".split(" ");
