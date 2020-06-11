@@ -9,31 +9,31 @@ public class ScaElScore extends Score {
 
 	public ScaElScore() {	
 		/* ! */ process(0," !");
-		/* A */ process(4," a");
-		/* C */ process(6," c, C, j");
-		/* B */ process(5," f, v");
-		/* E */ process(8," e, E");
-		/* D */ process(7," 8, T");
-		/* G */ process(9," X, x");
-		/* I */ process(11," i, I");
-		/* H */ process(10," H, h, 7");
-		/* K */ process(13," q, k, g, G");
-		/* J */ process(12," y");
-		/* M */ process(15," m");
-		/* L */ process(14," l, L");
-		/* O */ process(17," 3");
-		/* N */ process(16," n, N, 5, 4");
-		/* P */ process(18," p, b");
-		/* S */ process(20," s, z, S, Z");
-		/* R */ process(19," r, R");
-		/* U */ process(22," o");
-		/* T */ process(21," t, d");
-		/* W */ process(23," w");
-		/* Y */ process(24," u");
-		/* 1 */ process(1," 1");
-		/* 2 */ process(2," 2");
-		/* 6 */ process(3," 6");
-		/* _ */ process(25," _");
+		/* A */ process(10," a");
+		/* C */ process(12," c, C, j");
+		/* B */ process(11," f, v");
+		/* E */ process(14," e, E");
+		/* D */ process(13," 8, T");
+		/* G */ process(15," X, x");
+		/* I */ process(17," i, I");
+		/* H */ process(16," H, h, 7");
+		/* K */ process(19," q, k, g, G");
+		/* J */ process(18," y");
+		/* M */ process(21," m");
+		/* L */ process(20," l, L");
+		/* O */ process(23," 3");
+		/* N */ process(22," n, N, 5, 4");
+		/* P */ process(24," p, b");
+		/* S */ process(26," s, z, S, Z");
+		/* R */ process(25," r, R");
+		/* U */ process(28," o");
+		/* T */ process(27," t, d");
+		/* W */ process(29," w");
+		/* Y */ process(31," u");
+		/* 1 */ process(3," 1");
+		/* 2 */ process(4," 2");
+		/* 6 */ process(8," 6");
+		/* _ */ process(32," _");
 	setScore(new double[][] {
 		/* !	*/ {10.00, -100.00, 0.00, -20.00, -20.00, -20.00, -20.00, -20.00, -20.00, 0.00, -10.00, 0.00, 0.00, 0.00, -10.00, 0.00, 4.00, -10.00, 0.00, 4.00, 0.00, 0.00, 0.00, -10.00, 0.00, 0.00, 0.00, 0.00, -10.00, 0.00, 0.00, -10.00, -20.00},
 		/* +	*/ {-100.00, 0.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -5.00, -100.00, -100.00},

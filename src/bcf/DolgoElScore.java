@@ -8,20 +8,20 @@ import beast.core.Description;
 public class DolgoElScore extends Score {
 
 	public DolgoElScore() {	
-		/* V */ process(11," a, e, i, o, u, E, 3");
-		/* K */ process(4," k, g, x, X, C, c, q, j");
-		/* P */ process(7," p, b, f, v");
-		/* H */ process(2," H, h, 7, !");
-		/* J */ process(3," y");
-		/* M */ process(5," m");
-		/* N */ process(6," n, 5, N, 4");
-		/* S */ process(9," s, z, S, Z");
-		/* R */ process(8," r, l, R, L");
-		/* T */ process(10," t, d, 8, T");
-		/* W */ process(12," w");
+		/* V */ process(12," a, e, i, o, u, E, 3");
+		/* K */ process(5," k, g, x, X, C, c, q, j");
+		/* P */ process(8," p, b, f, v");
+		/* H */ process(3," H, h, 7, !");
+		/* J */ process(4," y");
+		/* M */ process(6," m");
+		/* N */ process(7," n, 5, N, 4");
+		/* S */ process(10," s, z, S, Z");
+		/* R */ process(9," r, l, R, L");
+		/* T */ process(11," t, d, 8, T");
+		/* W */ process(13," w");
 		/* + */ process(0," +");
-		/* 1 */ process(1," 1");
-		/* _ */ process(13," _");
+		/* 1 */ process(2," 1");
+		/* _ */ process(15," _");
 	setScore(new double[][] {
 		/* +	*/ {0.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -100.00, -5.00, -100.00},
 		/* 0	*/ {-100.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00},

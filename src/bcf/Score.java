@@ -27,6 +27,10 @@ public abstract class Score {
 		this.score = score;
 	}
 	
+	public double [][] getScore() {
+		return score;
+	}
+	
 	protected void process(int i, String string) {
 		for (String s : string.split(",")) {
 			s = s.trim();
