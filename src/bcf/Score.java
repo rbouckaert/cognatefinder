@@ -40,7 +40,7 @@ public abstract class Score {
 	}
 
 
-	float score(String a, String b) {
+	public float score(String a, String b) {
 		Integer i = charMap.get(a);
 		Integer j = charMap.get(b);
 		if (i == null || j == null) {
