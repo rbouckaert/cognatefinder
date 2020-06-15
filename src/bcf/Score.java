@@ -33,9 +33,14 @@ public abstract class Score {
 	
 	protected void process(int i, String string) {
 		for (String s : string.split(",")) {
-			s = s.trim();
+			s = s.trim().toLowerCase();
+			charMap.put(s,  i);
+			charMap.put(s+".",  i);
+			charMap.put(s+":",  i);
+			s = s.toUpperCase();
 			charMap.put(s,  i);
 			charMap.put(s+":",  i);
+			charMap.put(s+".",  i);
 		}		
 	}
 

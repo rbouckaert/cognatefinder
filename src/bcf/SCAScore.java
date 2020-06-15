@@ -74,7 +74,7 @@ public class SCAScore extends Score {
 		/* W */ process(27, "w,ʋ,ⱱ,ṿ,υ,ṽ");
 		/* X */// process(28, ""); ??
 		/* Y */ process(29, "y,ỹ,ỹ,ṳ,ṵ,ʏ,ʉ,u,ᴜ,ʊ,ú,ù,ũ,ü,ŭ,ǔ,ụ,ū,ỳ,û,û,ý,ў,ȗ,ṹ,uː");
-		/* _ */ process(30, "_,#,+,◦,·");
+		/* _ */ process(30, "_,#,+,◦,·,.");
 		
 		setScore(score);
 	}

@@ -467,11 +467,16 @@ public class SmithWatermanGotoh {
 	public static void main(String[] args) {
 		String [] w1 = "x t ʃ a: ɾ a m x".split(" ");
 		String [] w2 = "x s a: m b a l x".split(" ");
+
 		w2 = "_ a a\" a: a:ʰ b bʰ c d dʰ e e: f g gʰ h i i: j k kʰ l m n o o: p p: r s t tʰ u u: v x y z ã ñ ā ē ī ō ū Ɛ ɖ ə ɭ ɲ ɳ ɻ ɽ ɾ ʂ ʃ ʈ ʋ ʒ ḍ ḻ ṅ ṇ ṉ ṛ ṟ ṣ ṭ ə: ʃ: ɖʰ ".split(" ");
+		
+		w1 = "x, b, a, ŋ, x".split(", ");
+		w2 = "x, e, β, a, x".split(", ");
+		
 		// SmithWaterman align = new SmithWaterman(sub, d)
 		SCAScore matrix = new SCAScore();
 		SmithWatermanGotoh sw = new SmithWatermanGotoh();
-		String [] w3 = sw.align(w1, w2, matrix, -0.7f, -0.8f);
+		String [] w3 = sw.align(w1, w2, matrix, 5f, -0.8f);
 		System.out.println(Arrays.toString(w3));
 		System.out.println(Arrays.toString(w1));
 		System.out.println(Arrays.toString(w2));

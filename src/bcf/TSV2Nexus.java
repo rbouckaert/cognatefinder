@@ -39,7 +39,10 @@ public class TSV2Nexus extends Runnable {
 		}
 		@Override
 		public String toString() {
-			return aligned.toString();
+			if (aligned != null) {
+				return aligned.toString();
+			}
+			return token;
 		}
 	}
 	

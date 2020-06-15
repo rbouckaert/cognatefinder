@@ -59,6 +59,10 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		// align individual cogids
 		for (int i = 0; i < cognateCount; i++) {
+			if (i == 618) {
+				int h = 3;
+				h++;
+			}
 			alignCognate(seqs[i], extendGapPenaltyInput.get(), openGapPenaltyInput.get());
 			//alignCognate(seqs[i], 3.75f, -0.8f);
 		}
@@ -211,7 +215,7 @@ public class TSV2JSON extends TSV2Nexus {
 		Arrays.sort(phonemes_);
 		int i = 0;
 		for (String s : phonemes_) {
-			buf.append(s + "=" + i);
+			buf.append(s.toUpperCase() + "=" + i);
 			if (i < phonemes_.length-1) {
 				buf.append(",");
 			}

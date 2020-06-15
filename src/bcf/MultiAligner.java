@@ -55,7 +55,9 @@ public class MultiAligner {
 			alignedSeqs[i] = new Seq(seqs[i], matrix);
 		}
 		traverseUp(alignedSeqs, tree.getRoot());
+		System.err.println(Arrays.toString(alignedSeqs));
 		traverseDown(alignedSeqs, tree.getRoot());
+		System.err.println(Arrays.toString(alignedSeqs));
 
 		int len = 0;
 		for (int i = 0; i < alignedSeqs.length; i++) {
@@ -136,6 +138,7 @@ public class MultiAligner {
 					"b a n d ʒ i ",
 					"b a i ɾ u ",
 					"b a: ɾ ə "
+					
 			};
 s = new String[]{
 		"k a ɖ i",
@@ -182,6 +185,38 @@ s = new String[] {"a u",
 		"a β a u",
 		"n a u",
 		"v a u"};
+s = new String[] {
+//		"v a ʔ u",
+//		"w a l u",
+//		"v a r u",
+//		"w a r u",
+//		"v a l u",
+//		"v a ʔ u",
+//		"v a l u",
+//		"v a l u",
+//		"v a r u",
+//		"v a r u",
+//		"v a ʔ u",
+		"b a ŋ",
+		"e β a"
+//		"v a l u",
+//		"w a l u",
+//		"v a r u",
+//		"v a l u",
+//		"v a r u",
+//		"v a l u",
+//		"v a r u",
+//		"v a l u",
+//		"v a r u",
+//		"v a l u",
+//		"v a ʔ u",
+//		"v a l u",
+//		"v a l u",
+//		"β a r u",
+//		"v a r u",
+//		"v a ɢ u"
+		};
+
 
 	SCAScore matrix = new SCAScore();
 	Seq [] seqs = multiAlign(s, matrix, 5f, -1f);
