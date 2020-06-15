@@ -15,6 +15,7 @@ public class TSV2JSON extends TSV2Nexus {
 
 	@Override
 	public void initAndValidate() {
+		matrix = new DolgoScore();
 		matrix = new SCAScore();
 	}
 
@@ -59,12 +60,8 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		// align individual cogids
 		for (int i = 0; i < cognateCount; i++) {
-			if (i == 618) {
-				int h = 3;
-				h++;
-			}
 			alignCognate(seqs[i], extendGapPenaltyInput.get(), openGapPenaltyInput.get());
-			//alignCognate(seqs[i], 3.75f, -0.8f);
+			//alignCognate(seqs[i], 4.5f, -0.9f);
 		}
 		
 		// convert cognate alignments to sequences
@@ -268,6 +265,13 @@ public class TSV2JSON extends TSV2Nexus {
 			return 0;
 		}
 		int len = list.get(0).aligned.characters.length - 2;
+		if (len < 0) {
+			
+		}
+		String [] characters = list.get(0).aligned.characters;
+		if (!characters[0].equals("x") || !characters[characters.length - 1].equals("x")) {
+			System.err.println("Looks like the sequences i alignment");
+		}
 		
 		// sanity check
 		for (int i = 0; i < list.size(); i++) {

@@ -55,9 +55,9 @@ public class MultiAligner {
 			alignedSeqs[i] = new Seq(seqs[i], matrix);
 		}
 		traverseUp(alignedSeqs, tree.getRoot());
-		System.err.println(Arrays.toString(alignedSeqs));
+		//System.err.println(Arrays.toString(alignedSeqs));
 		traverseDown(alignedSeqs, tree.getRoot());
-		System.err.println(Arrays.toString(alignedSeqs));
+		//System.err.println(Arrays.toString(alignedSeqs));
 
 		int len = 0;
 		for (int i = 0; i < alignedSeqs.length; i++) {
@@ -198,27 +198,50 @@ s = new String[] {
 //		"v a r u",
 //		"v a ʔ u",
 		"b a ŋ",
-		"e β a"
-//		"v a l u",
-//		"w a l u",
-//		"v a r u",
-//		"v a l u",
-//		"v a r u",
-//		"v a l u",
-//		"v a r u",
-//		"v a l u",
-//		"v a r u",
-//		"v a l u",
-//		"v a ʔ u",
-//		"v a l u",
-//		"v a l u",
-//		"β a r u",
-//		"v a r u",
-//		"v a ɢ u"
+		"e β a",
+		"v a l u",
+		"w a l u",
+		"v a r u",
+		"v a l u",
+		"v a r u",
+		"v a l u",
+		"v a r u",
+		"v a l u",
+		"v a r u",
+		"v a l u",
+		"v a ʔ u",
+		"v a l u",
+		"v a l u",
+		"β a r u",
+		"v a r u",
+		"v a ɢ u"
 		};
+
+	s = new String[]{"r i m a _ ŋ a u r u",
+			"l i m a g a f u l u",
+			"l i m a s e f u l u",
+			"n i m a ŋ o f u l u",
+			"l i m a ŋ a u l u",
+			"r i m a _ r o ŋ o ʔ u r u"
+	};
+
+	s = new String[]{
+			"a _ ŋ a u",
+			"a g a f u",
+//			"a s e f u",
+//			"a ŋ o f u",
+//			"a ŋ a u l",
+			"a _ r o ŋ o ʔ u"
+	};
 
 
 	SCAScore matrix = new SCAScore();
+	
+	System.err.println(matrix.score("ŋ","ŋ"));
+	System.err.println(matrix.score("ŋ","a"));
+	System.err.println(matrix.score("ŋ","g"));
+	System.err.println(matrix.score("g","a"));
+	
 	Seq [] seqs = multiAlign(s, matrix, 5f, -1f);
 	for (Seq seq : seqs) {
 		System.out.println(Arrays.toString(seq.characters));

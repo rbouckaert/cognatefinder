@@ -16,9 +16,9 @@ public class TSV2Nexus extends Runnable {
 	public Input<OutFile> outputInput = new Input<>("out", "output file, or stdout if not specified",
 			new OutFile("[[none]]"));
 	public Input<Float> extendGapPenaltyInput = new Input<>("egp","extend gap penalty used in aligning sequences. "
-			+ "These can be tuned to minimise the nr of unhappy (containing both vowels and consonants) columns", 3.75f); 
+			+ "These can be tuned to minimise the nr of unhappy (containing both vowels and consonants) columns", 4.0f); 
 	public Input<Float> openGapPenaltyInput = new Input<>("ogp","open gap penalty used in aligning sequences. "
-			+ "These can be tuned as togetehr with egp input", -0.8f); 
+			+ "These can be tuned as togetehr with egp input", -0.75f); 
 	
 	
 	Score matrix;

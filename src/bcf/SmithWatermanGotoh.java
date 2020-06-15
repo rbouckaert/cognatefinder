@@ -472,6 +472,8 @@ public class SmithWatermanGotoh {
 		
 		w1 = "x, b, a, ŋ, x".split(", ");
 		w2 = "x, e, β, a, x".split(", ");
+		w1 = "x, x, x, b, a, ŋ, x, x, x".split(", ");
+		w2 = "x, x, x, e, β, a, x, x, x".split(", ");
 		
 		// SmithWaterman align = new SmithWaterman(sub, d)
 		SCAScore matrix = new SCAScore();

@@ -1,5 +1,6 @@
 package bcf;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import beast.core.Description;
@@ -20,7 +21,7 @@ import beast.core.Description;
  */
 @Description("Score matrix for aligning phoneme strings ")
 public abstract class Score {
-	Map<String,Integer> charMap;
+	Map<String,Integer> charMap = new HashMap<>();
 	double [][] score;
 	
 	protected void setScore(double [][] score) {
@@ -36,11 +37,15 @@ public abstract class Score {
 			s = s.trim().toLowerCase();
 			charMap.put(s,  i);
 			charMap.put(s+".",  i);
-			charMap.put(s+":",  i);
+			charMap.put(s+"ː",  i);
+			charMap.put(s+"ʰ",  i);
+			charMap.put("ʰ"+s,  i);
 			s = s.toUpperCase();
 			charMap.put(s,  i);
-			charMap.put(s+":",  i);
+			charMap.put(s+"ː",  i);
 			charMap.put(s+".",  i);
+			charMap.put(s+"ʰ",  i);
+			charMap.put("ʰ"+s,  i);
 		}		
 	}
 
