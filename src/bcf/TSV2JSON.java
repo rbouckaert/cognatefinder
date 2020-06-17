@@ -135,9 +135,18 @@ public class TSV2JSON extends TSV2Nexus {
 		appendDataType(vowels, "vowels", buf);
 		appendDataType(consonants, "consonants", buf);
 
+		buf.append("\"words\":\"");
+		for (int i = 0; i < concepts.size(); i++) {
+			buf.append(concept[i].replaceAll("[ ,]", "_"));
+			if (i < concepts.size() - 1) {
+				buf.append(",");
+			}
+		}
+		buf.append("\",\n");
+
 		buf.append("\"filters\":\"\n");
 		for (int i = 0; i < concepts.size(); i++) {
-				buf.append("<data id='" + concept[i] +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1] : 1)+"-"+start[i]+"'/>\n");
+				buf.append("<data id='" + concept[i].replaceAll("[ ,]", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1] : 1)+"-"+start[i]+"' data='@data'/>\n");
 		}		
 		buf.append("\"\n}\n");
 		
@@ -208,7 +217,7 @@ public class TSV2JSON extends TSV2Nexus {
 
 	private void appendDataType(Set<String> phonemes, String id, StringBuilder buf) {
 		String [] phonemes_ = phonemes.toArray(new String[]{});
-		buf.append("\"datatype_"+id+"\":\"<dataType id='" + id + "' spec='UserDataType' states='" + phonemes_.length + "' codelength='2' codeMap='");
+		buf.append("\"datatype_"+id+"\":\"<userDataType id='" + id + "' spec='beast.phoneme.UserPhonemeDataType' states='" + phonemes_.length + "' codelength='2' codeMap='");
 		Arrays.sort(phonemes_);
 		int i = 0;
 		for (String s : phonemes_) {
@@ -239,7 +248,7 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 	}
 
-
+	// replace infrequently (<10) occurring phonemes by nearest phoneme
 	private String cleanUp(String string) {
 		string = string.replaceAll("ʰn","n.");
 		string = string.replaceAll("ʰs","s.");
