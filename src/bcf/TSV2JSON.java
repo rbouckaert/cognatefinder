@@ -138,6 +138,16 @@ public class TSV2JSON extends TSV2Nexus {
 		buf.append("\"words\":\"");
 		for (int i = 0; i < concepts.size(); i++) {
 			buf.append(concept[i].replaceAll("[ ,]", "_"));
+			buf.append(concept[i].replaceAll("/", "-"));
+			if (i < concepts.size() - 1) {
+				buf.append(",");
+			}
+		}
+		buf.append("\",\n");
+		buf.append("\"words-1\":\"");
+		for (int i = 1; i < concepts.size(); i++) {
+			buf.append(concept[i].replaceAll("[ ,]", "_"));
+			buf.append(concept[i].replaceAll("/", "-"));
 			if (i < concepts.size() - 1) {
 				buf.append(",");
 			}
