@@ -48,6 +48,8 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 		cognateCount++;
 		
+		boolean [][] docHasConcept = new boolean[doculects.size()][concept.length];
+		
 		// group by cogid
 		List<C> [] seqs = new List[cognateCount];
 		for (int i = 0; i < cogid.length; i++) {
@@ -76,17 +78,36 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		
 		int j = 0;
+		int MAX = 256;
+		int [] cognatePerConceptHistogram = new int[MAX];
+		List<String> [] conceptSet = new List[MAX];
+		for (int i = 0; i < conceptSet.length; i++) {
+			conceptSet[i] = new ArrayList<>();
+		}
+		int [] dataPerConceptHistogram = new int[MAX];
+		List<String> [] dataSet = new List[MAX];
+		for (int i = 0; i < dataSet.length; i++) {
+			dataSet[i] = new ArrayList<>();
+		}
 		for (String c : concept) {
 			int len = 0;
+			int cognatePerConcept = 0;
+			int dataPerConcept = 0;
 			for (int k = 0; k < conceptList.length; k++) {
 				if (conceptList[k].equals(c)) {
 					int i = cogid[k];
 					if (!done[i]) {
-						len +=  toCharSeqs(seqs[i], docIds, charSeqs);
+						len +=  toCharSeqs(seqs[i], docIds, charSeqs, j, docHasConcept);
 						done[i] = true;
+						cognatePerConcept++;
 					}
+					dataPerConcept++;
 				}
 			}
+			cognatePerConceptHistogram[cognatePerConcept]++;
+			conceptSet[cognatePerConcept].add(c);
+			dataPerConceptHistogram[dataPerConcept]++;
+			dataSet[dataPerConcept].add(c);
 			start[j] = len + (j>0?start[j-1] : 0);
 			j++;
 		}
@@ -123,7 +144,7 @@ public class TSV2JSON extends TSV2Nexus {
 				buf.append("                         ".substring(docIds[i].length()));
 			}
 			buf.append("value='");
-			getPhonemes(sequence[i], phonemes, vowels, consonants);
+			processPhonemes(sequence[i], phonemes, vowels, consonants);
 			
 			buf.append(sequence[i]);
 			buf.append("'/>\n");
@@ -162,6 +183,47 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		out.println(buf.toString());
 
+		// process stats
+		System.err.println();
+		double mean = 0;
+		double count = 0;
+		for (int i = 0; i < cognatePerConceptHistogram.length; i++) {
+			if (cognatePerConceptHistogram[i] > 0) {
+				mean += cognatePerConceptHistogram[i] * i;
+				count += cognatePerConceptHistogram[i];
+				System.err.println(cognatePerConceptHistogram[i] + " concepts with " + i + " cognates " + 
+					Arrays.toString(conceptSet[i].toArray()));
+			}
+		}
+		System.err.println("On average: " + (mean / count) + " cognates per concept\n");
+
+		mean = 0;
+		count = 0;
+		for (int i = 0; i < dataPerConceptHistogram.length; i++) {
+			if (dataPerConceptHistogram[i] > 0) {
+				mean += dataPerConceptHistogram[i] * i;
+				count += dataPerConceptHistogram[i];
+				System.err.println(dataPerConceptHistogram[i] + " concepts with " + i + " data " + 
+					Arrays.toString(dataSet[i].toArray()));
+			}
+		}
+		System.err.println("On average: " + (mean / count) + " data per concept\n");
+		
+		mean = 0;
+		for (int i = 0; i < doculects.size(); i++) {
+			int k = 0;
+			for (boolean b : docHasConcept[i]) {
+				if (b) {
+					k++;
+				}
+			}
+			mean += k;
+			System.err.println(doculect[i] + " covered by " + k + " concepts");
+		}
+		System.err.println("On average: " + (mean / doculects.size()) + " (out of "
+				+ concepts.size() + ") concepts covered per doculect\n");
+		
+		
 		Log.warning("Done!");
 
 	}
@@ -242,7 +304,7 @@ public class TSV2JSON extends TSV2Nexus {
 	}
 
 
-	private void getPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants) {
+	private void processPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants) {
 		for (int i = 0; i < sequence.length(); i+= 2) {
 			String phoneme = sequence.substring(i, i+2);
 			phonemes.add(phoneme);
@@ -279,7 +341,7 @@ public class TSV2JSON extends TSV2Nexus {
 	}
 
 
-	private int toCharSeqs(List<C> list, String[] docIds, StringBuilder [] charSeqs) {
+	private int toCharSeqs(List<C> list, String[] docIds, StringBuilder [] charSeqs, int concept, boolean [][] docHasConcept) {
 		if (list == null) {
 			return 0;
 		}
@@ -304,6 +366,7 @@ public class TSV2JSON extends TSV2Nexus {
 		boolean [] done = new boolean[charSeqs.length];
 		for (C c : list) {
 			int docId = indexOf(c.doculect, docIds);
+			docHasConcept[docId][concept] = true;
 			if (!done[docId]) {
 				done[docId] = true;
 				for (int i = 1; i < c.aligned.characters.length - 1; i++) {
