@@ -125,6 +125,35 @@ public class TSV2JSON extends TSV2Nexus {
 		separateVowelsAndConsonants(sequence);
 
 		
+		// create binary cognate alignment
+		char [][] cognateCharSeqs = new char[doculects.size()][cognateCount];
+		for (int i = 0; i < cognateCharSeqs.length; i++) {
+			Arrays.fill(cognateCharSeqs[i],'0');
+		}
+		for (int i = 0; i < cogid.length; i++) {
+			int cogid_ = cogid[i];
+			String doculect_ = doculect[i];
+			int k = indexOf(doculect_, docIds);
+			cognateCharSeqs[k][cogid_] = '1';
+		}
+		// check for constant columns
+		
+		for (int k = 0; k < cognateCount; k++) {
+			boolean isConstant = true;
+			
+			for (int i = 1; i < doculects.size(); i++) {
+				if (cognateCharSeqs[i][k] != cognateCharSeqs[0][k]) {
+					isConstant = false;
+					break;
+				}
+			}
+			if (isConstant) {
+				System.err.println("Constant column ("+cognateCharSeqs[0][k]+") in binary sequence at column " + (k+1));
+			}
+		}
+
+		
+		
 		// output results
 		StringBuilder buf = new StringBuilder();
 		buf.append("{");
@@ -151,6 +180,20 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 		buf.append("\",\n");
 		
+		buf.append("\"binsequences\":\"\n");
+		for (int i = 0; i < docIds.length; i++) {
+			buf.append("<sequence taxon='" + docIds[i] + "' ");
+			if (docIds[i].length() < 25) {
+				buf.append("                         ".substring(docIds[i].length()));
+			}
+			buf.append("value='");
+			for (int k = 0; k < cognateCount; k++) {
+				buf.append(cognateCharSeqs[i][k]);
+			}
+			buf.append("'/>\n");
+		}
+		buf.append("\",\n");
+
 		buf.append("// _. = gap between words, .. = other cognate, -. = gap due to alignment\n");
 		appendDataType(phonemes, "phonemes", buf);
 		appendDataType(vowels, "vowels", buf);
