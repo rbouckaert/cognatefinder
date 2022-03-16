@@ -302,7 +302,7 @@ public class TSV2JSON extends TSV2Nexus {
 				if ("aeoiuy".indexOf(c)>=0) {
 					isVowel++;
 				}
-				if ("bdfghjklmnprsttvwÅ‹É¢ÊƒÊ”Î²".indexOf(c)>=0) {
+				if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
 					isCons++;
 				}
 			}
@@ -334,7 +334,7 @@ public class TSV2JSON extends TSV2Nexus {
 				} else {
 					for (int j = 0; j < sequences.length; j++) {
 						char c = sequences[j].charAt(i);
-						if ("bdfghjklmnprsttvwÅ‹É¢ÊƒÊ”Î²".indexOf(c)>=0) {
+						if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
 							sequences[j] = sequences[j].substring(0, i) + "-." + sequences[j].substring(i+2); 
 						}
 					}					
@@ -386,18 +386,20 @@ public class TSV2JSON extends TSV2Nexus {
 
 	// replace infrequently (<10) occurring phonemes by nearest phoneme
 	private String cleanUp(String string) {
-		string = string.replaceAll("Ê°n","n.");
-		string = string.replaceAll("Ê°s","s.");
-		string = string.replaceAll("lÊ°","l.");
-		string = string.replaceAll("pÊ°","p.");
-		string = string.replaceAll("áµ�b","b.");
+		
+		
+		string = string.replaceAll("ʰn","n.");
+		string = string.replaceAll("ʰs","s.");
+		string = string.replaceAll("lʰ","l.");
+		string = string.replaceAll("pʰ","p.");
+		string = string.replaceAll("ᵐb","b.");
 
-		string = string.replaceAll("tÊƒ","s.");
-		string = string.replaceAll("Ê°l","l.");
-		string = string.replaceAll("kÊ°","k.");
-		string = string.replaceAll("É£","g");
-		string = string.replaceAll("Ê°m","m.");
-
+		string = string.replaceAll("tʃ","s.");
+		string = string.replaceAll("ʰl","l.");
+		string = string.replaceAll("kʰ","k.");
+		string = string.replaceAll("ɣ","g");
+		string = string.replaceAll("ʰm","m.");
+		
 		string = string.replaceAll(" ",".");
 		string = string.replaceAll("\\+","_");
 
