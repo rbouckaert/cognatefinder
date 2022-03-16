@@ -1,9 +1,13 @@
 package bcf;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
 
+import beast.app.beauti.BeautiDoc;
 import beast.app.util.Application;
+import beast.core.Input;
 import beast.core.util.Log;
 
 /**
@@ -13,6 +17,13 @@ import beast.core.util.Log;
  */
 public class TSV2JSON extends TSV2Nexus {
 
+	final public Input<File> mappingInput = new Input<>("mapping", "phoneme mapping used to preprocess phoneme strings to get rid of infrequently occurring phonemes. "
+			+ "This is a tab delimited file with first column source phoneme and second column the target phoneme. "
+			+ "All occurrances of source phonemes will be replaced by target phonemes. "
+			+ "Ignored when not specified.");
+	
+	Map<String, String> phonemeMapping = new HashMap<>();
+	
 	@Override
 	public void initAndValidate() {
 		matrix = new DolgoScore();
@@ -25,12 +36,17 @@ public class TSV2JSON extends TSV2Nexus {
 		if (tsvInput.get() == null || tsvInput.get().getName().equals("[[none]]")) {
 			throw new IllegalArgumentException("A valid TSV file must be specified");
 		}
+		if (mappingInput.get() != null) {
+			processMapping();
+		}
+		
 		TSVImporter importer = new TSVImporter(tsvInput.get(), languagesInput.get());
 		
 		String [] token = importer.getColumn("TOKENS");
 		if (token == null ) {
 			token = importer.getColumn("SEGMENTS");
 		}
+		standardiseTokens(token);
 		int [] cogid = importer.getColumnAsInt("COGID");
 		if (cogid == null ) {
 			cogid = importer.getColumnAsInt("COGNACY");
@@ -320,6 +336,53 @@ public class TSV2JSON extends TSV2Nexus {
 
 	}
 
+	private void standardiseTokens(String[] token) {
+		if (phonemeMapping.size() > 0) {
+			for (int k = 0; k < token.length; k++) {
+				String string = token[k];
+				String [] strs = string.split("\\s");
+				for (int i = 0; i < strs.length; i++) {
+					if (phonemeMapping.containsKey(strs[i])) {
+						strs[i] = phonemeMapping.get(strs[i]);
+					}
+				}
+				
+				StringBuilder b = new StringBuilder();
+				b.append(strs[0]);
+				for (int i = 1; i < strs.length; i++) {
+					b.append(' ');
+					b.append(strs[i]);
+				}
+				string = b.toString();
+				token[k] = string;
+			}
+		}
+	}
+
+
+	private void processMapping() throws IOException {
+		String s = BeautiDoc.load(mappingInput.get());
+		String [] strs = s.split("\n");
+		for (String str : strs) {
+			if (!str.startsWith("#")) {
+				String [] strs2 = str.split("\t");
+				if (strs2.length == 2) {
+					if (strs2[0].length() == strs2[1].length()) {
+						phonemeMapping.put(strs2[0], strs2[1]);
+					} else {
+						Log.warning("found line with source phoneme length not equal to target phoneme length " + str);
+						Log.warning("the line is ignored");
+					}
+				} else {
+					Log.warning("found line with " + strs2.length + " columns in mapping file, where 2 are expected: " + str);
+					Log.warning("the line is ignored");
+				}
+			}
+		}
+		
+	}
+
+
 	private void separateVowelsAndConsonants(String[] sequences) {
 		int unhappyColumns = 0;
 		for (int i = 0; i < sequences[0].length(); i+=2) {
@@ -370,7 +433,7 @@ public class TSV2JSON extends TSV2Nexus {
 			}
 		}
 		
-		Log.warning(unhappyColumns + " unhappy columns");
+		Log.warning(unhappyColumns + " unhappy columns -- columns containing both consonants and vowels");
 		if (unhappyColumns > 0) {
 			Log.warning("Repaired unhappy columns");
 			// sanity check: should have 0 unhappy columns
@@ -412,10 +475,14 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 	}
 
-	// replace infrequently (<10) occurring phonemes by nearest phoneme
+	
 	private String cleanUp(String string) {
-		
-		
+		string = string.replaceAll(" ",".");
+		string = string.replaceAll("\\+","_");
+		if (true) {
+			return string;
+		}
+		// replace infrequently (<10) occurring phonemes by nearest phoneme
 		string = string.replaceAll("ʰn","n.");
 		string = string.replaceAll("ʲk","k.");		
 		string = string.replaceAll("ʰs","s.");
@@ -426,11 +493,8 @@ public class TSV2JSON extends TSV2Nexus {
 		string = string.replaceAll("tʃ","s.");
 		string = string.replaceAll("ʰl","l.");
 		string = string.replaceAll("kʰ","k.");
-		string = string.replaceAll("ɣ","g.");
+		string = string.replaceAll("ɣ","g");
 		string = string.replaceAll("ʰm","m.");
-		
-		string = string.replaceAll(" ",".");
-		string = string.replaceAll("\\+","_");
 
 		return string;
 	}
