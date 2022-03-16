@@ -19,6 +19,7 @@ public class TSV2Nexus extends Runnable {
 			+ "These can be tuned to minimise the nr of unhappy (containing both vowels and consonants) columns", 4.0f); 
 	public Input<Float> openGapPenaltyInput = new Input<>("ogp","open gap penalty used in aligning sequences. "
 			+ "These can be tuned as togetehr with egp input", -0.75f); 
+	public Input<File> languagesInput = new Input<>("languages", "text file with languages to include, one per line. If not specified, all languages are included");
 	
 	
 	Score matrix;
@@ -51,7 +52,7 @@ public class TSV2Nexus extends Runnable {
 		if (tsvInput.get() == null || tsvInput.get().getName().equals("[[none]]")) {
 			throw new IllegalArgumentException("A valid TSV file must be specified");
 		}
-		TSVImporter importer = new TSVImporter(tsvInput.get());
+		TSVImporter importer = new TSVImporter(tsvInput.get(), languagesInput.get());
 		
 		String [] token = importer.getColumn("TOKENS");
 		int [] cogid = importer.getColumnAsInt("COGID");
@@ -195,7 +196,7 @@ public class TSV2Nexus extends Runnable {
 
 	protected int indexOf(String doculect, String[] docIds) {
 		for (int i = 0; i < docIds.length; i++) {
-			if (docIds[i].equals(doculect)) {
+			if (docIds[i] != null && docIds[i].equals(doculect)) {
 				return i;
 			}
 		}

@@ -3,6 +3,7 @@ package bcf;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -20,32 +21,80 @@ public class TSVImporter {
 	
 	public TSVImporter(File file) throws IOException {
 		String data = BeautiDoc.load(file);
-		process(data);
+		process(data, null);
 	}
 	
-	public TSVImporter(String data) {
-		process(data);
+	public TSVImporter(File file, File languageFile) throws IOException {
+		String data = BeautiDoc.load(file);
+		if (languageFile == null) {
+			process(data, null);
+			return;
+		}
+		Set<String> languages = new HashSet<>(); 
+		for (String language: BeautiDoc.load(languageFile).split("\n")) {
+			if (language != null && !language.startsWith("#") && language.trim().length() > 0) {
+				languages.add(language);
+			}
+		}
+		process(data, languages);
 	}
 
-	private void process(String data) {
+	public TSVImporter(String data) {
+		process(data, null);
+	}
+
+	private void process(String data, Set<String> languages) {
 		String [] strs = data.split("\n");
-		labels = strs[0].split("\t");
-		datacolumns = new String[labels.length][strs.length - 1];
+		int n = 0;
 		for (int i = 0; i < strs.length - 1; i++) {
-			String [] s = strs[i+1].split("\t");
-			if (s.length != labels.length) {
-//				Log.warning("Line " + (i+2) + " does not have the same number of columns as the header: "
-//						+ "expected " + labels.length + " but got " + s.length);
-			}
-			for (int j = 0; j < s.length; j++) {
-				datacolumns[j][i] = s[j];
-			}
-			for (int j = s.length; j < labels.length; j++) {
-				datacolumns[j][i] = null;
+			if (n == 0 || (!strs[i+1].startsWith("#") && matches(strs[i+1], languages))) {
+				n++;
 			}
 		}
 		
-	}	
+		String separator = "\t";
+		labels = strs[0].split(separator);
+		if (labels.length == 1) {
+			// try comma separates
+			separator = ",";
+			labels = strs[0].split(separator);
+		}
+		for (int i = 0; i < labels.length; i++) {
+			labels[i] = labels[i].toUpperCase();
+		}
+		datacolumns = new String[labels.length][n];
+		int k = 0;
+		for (int i = 0; i < strs.length - 1; i++) {
+			if (!strs[i+1].startsWith("#") && matches(strs[i+1], languages)) {
+				String [] s = strs[i+1].split(separator);
+				if (s.length != labels.length) {
+					Log.warning("Line " + (i+2) + " does not have the same number of columns as the header: "
+							+ "expected " + labels.length + " but got " + s.length);
+				}
+				for (int j = 0; j < Math.min(labels.length, s.length); j++) {
+					datacolumns[j][k] = s[j];
+				}
+				for (int j = s.length; j < labels.length; j++) {
+					datacolumns[j][k] = null;
+				}
+				k++;
+			}
+		}		
+	}
+	
+	
+	private boolean matches(String str, Set<String> languages) {
+		if (languages == null) {
+			return true;
+		}
+		String [] strs = str.split("\t");
+		for (String s : strs) {
+			if (languages.contains(s)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	String [] getColumn(int c) {
 		return datacolumns[c];
@@ -65,10 +114,23 @@ public class TSVImporter {
 		int [] intData = new int[data.length];
 		for (int i = 0; i < data.length; i++) {
 			String str = data[i];
-			if (str == null) {
+			if (str == null || str.trim().length() == 0) {
 				intData[i] = Integer.MIN_VALUE;
 			} else {
-				intData[i] = Integer.parseInt(str);
+				try {
+					intData[i] = Integer.parseInt(str);
+				} catch (NumberFormatException e) {
+					int k = str.length()-1;
+					while (Character.isDigit(str.charAt(k))) {
+						k--;
+					}
+					try {
+						intData[i] = Integer.parseInt(str.substring(k+1));
+					} catch (NumberFormatException e2) {
+						Log.warning("Cannot determine int value of \"" + str + "\"");
+						intData[i] = Integer.MIN_VALUE;
+					}
+				}
 			}
 		}
 		return intData;

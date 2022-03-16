@@ -39,23 +39,26 @@ public abstract class Score {
 			charMap.put(s+".",  i);
 			charMap.put(s+"ː",  i);
 			charMap.put(s+"ʰ",  i);
+			charMap.put(s+"ⁿ",  i);
 			charMap.put("ʰ"+s,  i);
+			charMap.put("ⁿ"+s,  i);
+			charMap.put("ʲ"+s,  i);
 			s = s.toUpperCase();
 			charMap.put(s,  i);
 			charMap.put(s+"ː",  i);
 			charMap.put(s+".",  i);
 			charMap.put(s+"ʰ",  i);
+			charMap.put(s+"ⁿ",  i);
 			charMap.put("ʰ"+s,  i);
+			charMap.put("ⁿ"+s,  i);
+			charMap.put("ʲ"+s,  i);
 		}		
 	}
 
 
 	public float score(String a, String b) {
-		Integer i = charMap.get(a);
-		Integer j = charMap.get(b);
-		if (i == null || j == null) {
-			throw new IllegalArgumentException("Character " + a + " or " + b + " was not mapped yet");
-		}
+		Integer i = charMapGet(a);
+		Integer j = charMapGet(b);
 		if (i == j) {
 			if (a.equals(b)) {
 				return (float) score[i][j];
@@ -66,6 +69,22 @@ public abstract class Score {
 		return (float) score[i][j];
 	}
 	
+	private Integer charMapGet(String a) {
+		Integer i = charMap.get(a);
+		if (i == null) {
+			if (a.contains("/")) {
+				String a2 = a.substring(a.lastIndexOf('/') + 1);
+				i = charMap.get(a2);
+				if (i == null) {
+					throw new IllegalArgumentException("Character " + a + " was not mapped yet");
+				}
+			} else {
+				throw new IllegalArgumentException("Character " + a + " was not mapped yet");
+			}
+		}
+		return i;
+	}
+
 	public int getCode(String character) {
 		Integer i = charMap.get(character);
 		if (i == null) {

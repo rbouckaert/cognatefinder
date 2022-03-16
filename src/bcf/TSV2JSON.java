@@ -25,19 +25,33 @@ public class TSV2JSON extends TSV2Nexus {
 		if (tsvInput.get() == null || tsvInput.get().getName().equals("[[none]]")) {
 			throw new IllegalArgumentException("A valid TSV file must be specified");
 		}
-		TSVImporter importer = new TSVImporter(tsvInput.get());
+		TSVImporter importer = new TSVImporter(tsvInput.get(), languagesInput.get());
 		
 		String [] token = importer.getColumn("TOKENS");
+		if (token == null ) {
+			token = importer.getColumn("SEGMENTS");
+		}
 		int [] cogid = importer.getColumnAsInt("COGID");
+		if (cogid == null ) {
+			cogid = importer.getColumnAsInt("COGNACY");
+		}
 		String [] conceptList = importer.getColumn("CONCEPT");
+		if (conceptList == null) {
+			conceptList = importer.getColumn("PARAMETER_ID");
+		}
 		String [] doculect = importer.getColumn("DOCULECT");
+		if (doculect == null) {
+			doculect = importer.getColumn("LANGUAGE_ID");
+		}
 		Set<String> doculects = new LinkedHashSet<>();
 		for (String s : doculect) {
 			doculects.add(s);
 		}
 		Set<String> concepts = new LinkedHashSet<>();
 		for (String s : conceptList) {
-			concepts.add(s);
+			if (s != null) {
+				concepts.add(s);
+			}
 		}
 		String [] concept = concepts.toArray(new String[]{});
 		Arrays.sort(concept);
@@ -54,10 +68,12 @@ public class TSV2JSON extends TSV2Nexus {
 		List<C> [] seqs = new List[cognateCount];
 		for (int i = 0; i < cogid.length; i++) {
 			int id = cogid[i];
-			if (seqs[id] == null) {
-				seqs[id] = new ArrayList<>();
+			if (id > 0) {
+				if (seqs[id] == null) {
+					seqs[id] = new ArrayList<>();
+				}
+				seqs[id].add(new C(token[i], doculect[i]));
 			}
-			seqs[id].add(new C(token[i], doculect[i]));			
 		}
 		
 		// align individual cogids
@@ -94,7 +110,7 @@ public class TSV2JSON extends TSV2Nexus {
 			int cognatePerConcept = 0;
 			int dataPerConcept = 0;
 			for (int k = 0; k < conceptList.length; k++) {
-				if (conceptList[k].equals(c)) {
+				if (conceptList[k] != null && conceptList[k].equals(c)) {
 					int i = cogid[k];
 					if (!done[i]) {
 						len +=  toCharSeqs(seqs[i], docIds, charSeqs, j, docHasConcept);
@@ -133,21 +149,27 @@ public class TSV2JSON extends TSV2Nexus {
 		for (int i = 0; i < cogid.length; i++) {
 			int cogid_ = cogid[i];
 			String doculect_ = doculect[i];
-			int k = indexOf(doculect_, docIds);
-			cognateCharSeqs[k][cogid_] = '1';
+			if (doculect_ != null) {
+				int k = indexOf(doculect_, docIds);
+				cognateCharSeqs[k][cogid_] = '1';
+			}
 		}
 		// check for constant columns
-		
-		for (int k = 0; k < cognateCount; k++) {
+		boolean [] constantZeroColumn = new boolean[cognateCount];
+		for (int k = 1; k < cognateCount; k++) {
 			boolean isConstant = true;
 			
+			char c = cognateCharSeqs[0][k];
 			for (int i = 1; i < doculects.size(); i++) {
-				if (cognateCharSeqs[i][k] != cognateCharSeqs[0][k]) {
+				if (cognateCharSeqs[i][k] != c) {
 					isConstant = false;
 					break;
 				}
 			}
 			if (isConstant) {
+				if (c == '0') {
+					constantZeroColumn[k] = true;
+				}
 				System.err.println("Constant column ("+cognateCharSeqs[0][k]+") in binary sequence at column " + (k+1));
 			}
 		}
@@ -168,29 +190,35 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		
 		for (int i = 0; i < docIds.length; i++) {
-			buf.append("<sequence taxon='" + docIds[i] + "' ");
-			if (docIds[i].length() < 25) {
-				buf.append("                         ".substring(docIds[i].length()));
+			if (docIds[i] != null) {
+				buf.append("<sequence taxon='" + docIds[i] + "' ");
+				if (docIds[i].length() < 25) {
+					buf.append("                         ".substring(docIds[i].length()));
+				}
+				buf.append("value='");
+				processPhonemes(sequence[i], phonemes, vowels, consonants);
+				
+				buf.append(sequence[i]);
+				buf.append("'/>\n");
 			}
-			buf.append("value='");
-			processPhonemes(sequence[i], phonemes, vowels, consonants);
-			
-			buf.append(sequence[i]);
-			buf.append("'/>\n");
 		}
 		buf.append("\",\n");
 		
 		buf.append("\"binsequences\":\"\n");
 		for (int i = 0; i < docIds.length; i++) {
-			buf.append("<sequence taxon='" + docIds[i] + "' ");
-			if (docIds[i].length() < 25) {
-				buf.append("                         ".substring(docIds[i].length()));
+			if (docIds[i] != null) {
+				buf.append("<sequence taxon='" + docIds[i] + "' ");
+				if (docIds[i].length() < 25) {
+					buf.append("                         ".substring(docIds[i].length()));
+				}
+				buf.append("value='");
+				for (int k = 0; k < cognateCount; k++) {
+					if (!constantZeroColumn[k]) {
+						buf.append(cognateCharSeqs[i][k]);
+					}
+				}
+				buf.append("'/>\n");
 			}
-			buf.append("value='");
-			for (int k = 0; k < cognateCount; k++) {
-				buf.append(cognateCharSeqs[i][k]);
-			}
-			buf.append("'/>\n");
 		}
 		buf.append("\",\n");
 
@@ -389,6 +417,7 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		
 		string = string.replaceAll("ʰn","n.");
+		string = string.replaceAll("ʲk","k.");		
 		string = string.replaceAll("ʰs","s.");
 		string = string.replaceAll("lʰ","l.");
 		string = string.replaceAll("pʰ","p.");
@@ -397,7 +426,7 @@ public class TSV2JSON extends TSV2Nexus {
 		string = string.replaceAll("tʃ","s.");
 		string = string.replaceAll("ʰl","l.");
 		string = string.replaceAll("kʰ","k.");
-		string = string.replaceAll("ɣ","g");
+		string = string.replaceAll("ɣ","g.");
 		string = string.replaceAll("ʰm","m.");
 		
 		string = string.replaceAll(" ",".");
