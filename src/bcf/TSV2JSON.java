@@ -218,11 +218,32 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 		buf.append("\",\n");
 
+		
+		// Taxonset for multispecies coalescent
+		buf.append("\"taxonset\":\"\n");
+		for (int i = 0; i < docIds.length; i++) {
+			buf.append("<taxon id='" + docIds[i] + ".lang' spec='TaxonSet'>\n");
+			buf.append("\t<taxon id='" + docIds[i] + "' spec='Taxon' />\n");
+			buf.append("</taxon>\n");
+		}
+		buf.append("\",\n");
+		
+		// List of meaning class IDs
+		buf.append("\"meaning-classes\":\"");
+		for (int i = 0; i < concepts.size(); i++) {
+			buf.append("MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_"));
+			if (i < concepts.size()-1) buf.append(",");
+		}		
+		buf.append("\",\n");
+		
+		// One filter per meaning class (MC)
 		buf.append("\"filters\":\"\n");
 		for (int i = 0; i < concepts.size(); i++) {
-				buf.append("<data id='" + concept[i].replaceAll("[ ,]", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1] : 1)+"-"+start[i]+"' data='@data'/>\n");
+				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1] : 1)+"-"+start[i]+"' data='@data'/>\n");
 		}		
 		buf.append("\"\n}\n");
+		
+		
 		
 		out.println(buf.toString());
 
@@ -281,7 +302,7 @@ public class TSV2JSON extends TSV2Nexus {
 				if ("aeoiuy".indexOf(c)>=0) {
 					isVowel++;
 				}
-				if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
+				if ("bdfghjklmnprsttvwÅ‹É¢ÊƒÊ”Î²".indexOf(c)>=0) {
 					isCons++;
 				}
 			}
@@ -313,7 +334,7 @@ public class TSV2JSON extends TSV2Nexus {
 				} else {
 					for (int j = 0; j < sequences.length; j++) {
 						char c = sequences[j].charAt(i);
-						if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
+						if ("bdfghjklmnprsttvwÅ‹É¢ÊƒÊ”Î²".indexOf(c)>=0) {
 							sequences[j] = sequences[j].substring(0, i) + "-." + sequences[j].substring(i+2); 
 						}
 					}					
@@ -365,17 +386,17 @@ public class TSV2JSON extends TSV2Nexus {
 
 	// replace infrequently (<10) occurring phonemes by nearest phoneme
 	private String cleanUp(String string) {
-		string = string.replaceAll("ʰn","n.");
-		string = string.replaceAll("ʰs","s.");
-		string = string.replaceAll("lʰ","l.");
-		string = string.replaceAll("pʰ","p.");
-		string = string.replaceAll("ᵐb","b.");
+		string = string.replaceAll("Ê°n","n.");
+		string = string.replaceAll("Ê°s","s.");
+		string = string.replaceAll("lÊ°","l.");
+		string = string.replaceAll("pÊ°","p.");
+		string = string.replaceAll("áµ�b","b.");
 
-		string = string.replaceAll("tʃ","s.");
-		string = string.replaceAll("ʰl","l.");
-		string = string.replaceAll("kʰ","k.");
-		string = string.replaceAll("ɣ","g");
-		string = string.replaceAll("ʰm","m.");
+		string = string.replaceAll("tÊƒ","s.");
+		string = string.replaceAll("Ê°l","l.");
+		string = string.replaceAll("kÊ°","k.");
+		string = string.replaceAll("É£","g");
+		string = string.replaceAll("Ê°m","m.");
 
 		string = string.replaceAll(" ",".");
 		string = string.replaceAll("\\+","_");
