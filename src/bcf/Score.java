@@ -72,15 +72,10 @@ public abstract class Score {
 	private Integer charMapGet(String a) {
 		Integer i = charMap.get(a);
 		if (i == null) {
-			if (a.contains("/")) {
-				String a2 = a.substring(a.lastIndexOf('/') + 1);
-				i = charMap.get(a2);
-				if (i == null) {
-					throw new IllegalArgumentException("Character " + a + " was not mapped yet");
-				}
-			} else {
-				throw new IllegalArgumentException("Character " + a + " was not mapped yet");
-			}
+			charMap.put(a, 0);
+			System.err.println("Character " + a + " was not mapped yet");
+			return 0;
+			//throw new IllegalArgumentException("Character " + a + " was not mapped yet");
 		}
 		return i;
 	}

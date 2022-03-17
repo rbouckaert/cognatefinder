@@ -45,13 +45,6 @@ public class TSVImporter {
 
 	private void process(String data, Set<String> languages) {
 		String [] strs = data.split("\n");
-		int n = 0;
-		for (int i = 0; i < strs.length - 1; i++) {
-			if (n == 0 || (!strs[i+1].startsWith("#") && matches(strs[i+1], languages))) {
-				n++;
-			}
-		}
-		
 		String separator = "\t";
 		labels = strs[0].split(separator);
 		if (labels.length == 1) {
@@ -62,14 +55,27 @@ public class TSVImporter {
 		for (int i = 0; i < labels.length; i++) {
 			labels[i] = labels[i].toUpperCase();
 		}
+
+		int n = 0;
+		for (int i = 0; i < strs.length - 1; i++) {
+			if (n == 0 || (!strs[i+1].startsWith("#") && matches(strs[i+1], languages, separator))) {
+				n++;
+			}
+		}
+		
 		datacolumns = new String[labels.length][n];
 		int k = 0;
 		for (int i = 0; i < strs.length - 1; i++) {
-			if (!strs[i+1].startsWith("#") && matches(strs[i+1], languages)) {
+			if (!strs[i+1].startsWith("#") && matches(strs[i+1], languages, separator)) {
 				String [] s = strs[i+1].split(separator);
 				if (s.length != labels.length) {
+					if (s.length +1 == labels.length &&
+						strs[i+1].length() > 0 && strs[i+1].charAt(strs[i+1].length()-1) == separator.charAt(0)) {
+						// string ends in separator, so last entry is empty and not added to strs[i+1]
+					} else {
 					Log.warning("Line " + (i+2) + " does not have the same number of columns as the header: "
 							+ "expected " + labels.length + " but got " + s.length);
+					}
 				}
 				for (int j = 0; j < Math.min(labels.length, s.length); j++) {
 					datacolumns[j][k] = s[j];
@@ -83,11 +89,11 @@ public class TSVImporter {
 	}
 	
 	
-	private boolean matches(String str, Set<String> languages) {
+	private boolean matches(String str, Set<String> languages, String separator) {
 		if (languages == null) {
 			return true;
 		}
-		String [] strs = str.split("\t");
+		String [] strs = str.split(separator);
 		for (String s : strs) {
 			if (languages.contains(s)) {
 				return true;
