@@ -334,9 +334,16 @@ public class TSV2JSON extends TSV2Nexus {
 		appendDataType(phonemes, "phonemes", buf);
 		appendDataType(vowels, "vowels", buf);
 		appendDataType(consonants, "consonants", buf);
-		appendDataTypeWithMissing(phonemes, "phonemes", buf);
-		appendDataTypeWithMissing(vowels, "vowels", buf);
-		appendDataTypeWithMissing(consonants, "consonants", buf);
+
+		// remove ".." representing other cognates
+		appendDataTypeWithMissing(phonemes, "phonemes", buf, "..", 1);
+		appendDataTypeWithMissing(vowels, "vowels", buf, "..", 1);
+		appendDataTypeWithMissing(consonants, "consonants", buf, "..", 1);
+		
+		// remove ".-" representing missing data due to alignment
+		appendDataTypeWithMissing(phonemes, "phonemes", buf, "-.", 2);
+		appendDataTypeWithMissing(vowels, "vowels", buf, "-.", 2);
+		appendDataTypeWithMissing(consonants, "consonants", buf, "-.", 2);
 
 		buf.append("\"words\":\"");
 		for (int i = 0; i < concept.length; i++) {
@@ -378,7 +385,7 @@ public class TSV2JSON extends TSV2Nexus {
 		// One filter per meaning class (MC)
 		buf.append("\"filters\":\"\n");
 		for (int i = 0; i < concept.length; i++) {
-				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? (start[i-1]+1) : 1)+"-"+start[i]+"' data='@data'/>\n");
+				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1]+1 : 1)+"-"+start[i]+"' data='@data'/>\n");
 		}		
 		buf.append("\"\n}\n");
 		
@@ -518,10 +525,10 @@ public class TSV2JSON extends TSV2Nexus {
 		
 	}
 
-	private void appendDataTypeWithMissing(Set<String> phonemes, String id, StringBuilder buf) {
-		phonemes.remove("..");
+	private void appendDataTypeWithMissing(Set<String> phonemes, String id, StringBuilder buf, String codeToRemove, int countID) {
+		phonemes.remove(codeToRemove);
 		String [] phonemes_ = phonemes.toArray(new String[]{});
-		buf.append("\"datatype_"+id+"_M\":\"<userDataType id='" + id + "WithMissing' spec='beast.phoneme.UserPhonemeDataType' states='" + phonemes_.length + "' codelength='2' codeMap='");
+		buf.append("\"datatype_"+id+"_M" + countID + "\":\"<userDataType id='" + id + "WithMissing' spec='beast.phoneme.UserPhonemeDataType' states='" + phonemes_.length + "' codelength='2' codeMap='");
 		Arrays.sort(phonemes_);
 		int i = 0;
 		for (String s : phonemes_) {
@@ -531,13 +538,19 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 		buf.append("..=");
 		for (i = 0; i < phonemes.size(); i++) {
-			buf.append(i + " ");			
+			buf.append(i + " ");		
 		}
+		if (!phonemes.contains("-.")) {
+			buf.append(",-.=");
+			for (i = 0; i < phonemes.size(); i++) {
+				buf.append(i + " ");			
+			}
+		}
+		
  		buf.append("'/>\",\n");
- 		buf.append("\"gtrSymRatesM_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)/2) + "\",\n");
- 		buf.append("\"gtrAsymRatesM_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)) + "\",\n");		
+ 		buf.append("\"gtrSymRatesM\" + countID + \"_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)/2) + "\",\n");
+ 		buf.append("\"gtrAsymRatesM\" + countID + \"_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)) + "\",\n");		
 	}
-
 
 	private String processPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants) {
 		StringBuilder b = new StringBuilder();
