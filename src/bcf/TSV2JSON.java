@@ -26,6 +26,7 @@ public class TSV2JSON extends TSV2Nexus {
 	final public Input<File> encodingInput = new Input<>("encoding", "phoneme mapping used to post-process phoneme strings to get rid of infrequently non-ascii characters. "
 			+ "Like the mapping file, this is tab delimited with two columns");
 
+	final public Input<Boolean> suppresWordGapInput = new Input<>("suppresWordGap", "removes word gaps (encoded as '+' or '_') from segments", true);
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
 	Map<String, String> encodingMapping = new HashMap<>();
@@ -207,9 +208,6 @@ public class TSV2JSON extends TSV2Nexus {
 					int k = indexOf(doculect_, docIds);
 					if (cognateCharSeqs[k][cogid_]=='0') {
 						cognateCharSeqs[k][cogid_] = '1';
-					} else {
-						int h = 3;
-						h++;
 					}
 				}
 			}
@@ -389,15 +387,14 @@ public class TSV2JSON extends TSV2Nexus {
 		}		
 		buf.append("\"\n}\n");
 		
-		
-		
 		out.println(buf.toString());
 
 	}
 		
 
 	private void standardiseTokens(String[] token) {
-		if (phonemeMapping.size() > 0) {
+		boolean suppresWordGap = suppresWordGapInput.get();
+		if (phonemeMapping.size() > 0 || suppresWordGap) {
 			for (int k = 0; k < token.length; k++) {
 				String string = token[k];
 				if (string != null) {
@@ -406,17 +403,15 @@ public class TSV2JSON extends TSV2Nexus {
 						if (phonemeMapping.containsKey(strs[i])) {
 							strs[i] = phonemeMapping.get(strs[i]);
 						}
-						if (strs[i].length() == 0 || strs[i].length() > 2) {
-							int h = 3;
-							h++;
-						}
 					}
 					
 					StringBuilder b = new StringBuilder();
 					b.append(strs[0]);
 					for (int i = 1; i < strs.length; i++) {
-						b.append(' ');
-						b.append(strs[i]);
+						if (suppresWordGap && !strs[i].equals("+") && !strs[i].equals("_")) {
+							b.append(' ');
+							b.append(strs[i]);
+						}
 					}
 					string = b.toString();
 					token[k] = string;
@@ -434,10 +429,6 @@ public class TSV2JSON extends TSV2Nexus {
 				String [] strs2 = str.split("\t");
 				if (strs2.length == 2) {
 					phonemeMapping.put(strs2[0], strs2[1]);
-					if (strs2[1].length()>2) {
-						int h = 3;
-						h++;
-					}
 				} else {
 					Log.warning("found line with " + strs2.length + " columns in mapping file, where 2 are expected: " + str);
 					Log.warning("the line is ignored");
