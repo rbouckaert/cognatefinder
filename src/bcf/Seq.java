@@ -11,6 +11,9 @@ public class Seq {
 		codes = new int[chars.length];
 		for (int i = 0; i < chars.length; i++) {
 			codes[i] = score.getCode(chars[i]);
+			
+			System.out.println(i + ": " + chars[i] + " ,"  + codes[i]);
+			
 		}
 	}
 	

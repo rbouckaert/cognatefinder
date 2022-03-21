@@ -9,6 +9,11 @@ import beast.app.beauti.BeautiDoc;
 import beast.app.util.Application;
 import beast.core.Input;
 import beast.core.util.Log;
+import beast.evolution.alignment.Alignment;
+import beast.evolution.alignment.Sequence;
+import beast.phoneme.UserPhonemeDataType;
+import beast.util.ClusterTree;
+import beast.util.ClusterTree.Type;
 
 /**
  * Creates JSON file from word list
@@ -21,6 +26,9 @@ public class TSV2JSON extends TSV2Nexus {
 			+ "This is a tab delimited file with first column source phoneme and second column the target phoneme. "
 			+ "All occurrances of source phonemes will be replaced by target phonemes. "
 			+ "Ignored when not specified.");
+	
+	
+	final public Input<Integer> ntreesInput = new Input<>("ntrees", "The number of word trees to assign meaning classes to ", 0);
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
 	
@@ -189,7 +197,9 @@ public class TSV2JSON extends TSV2Nexus {
 				System.err.println("Constant column ("+cognateCharSeqs[0][k]+") in binary sequence at column " + (k+1));
 			}
 		}
-
+		
+		
+	
 		
 		
 		// output results
@@ -280,10 +290,53 @@ public class TSV2JSON extends TSV2Nexus {
 		}		
 		buf.append("\",\n");
 		
+		
+		
+		
+		
+		
+		// Meaning classes grouped by histories
+		int ntrees = ntreesInput.get();
+		if (ntrees > 0) {
+			List<List<String>> historyClasses = getHistoryClasses(concept, docIds, sequence, start, phonemes, ntrees);
+			
+			
+			// List of meaning class groups
+			buf.append("\"grouped-meaning-classes\":\"");
+			for (int i = 0; i < historyClasses.size(); i++) {
+				buf.append("MC_" + (i+1));
+				if (i < historyClasses.size()-1) buf.append(",");
+			}		
+			buf.append("\",\n");
+			
+			// One filter per meaning class (MC)
+			buf.append("\"grouped-filters\":\"\n");
+			for (int i = 0; i < historyClasses.size(); i++) {
+				String filter = "";
+				for (int c = 0; c < historyClasses.get(i).size(); c ++) {
+					String concep = historyClasses.get(i).get(c);
+					int conceptNum = 0;
+					for (String concep2 : concepts) {
+						if (concep2.equals(concep)) {
+							break;
+						}
+						conceptNum++;
+					}
+					filter += (conceptNum>0 ? (start[conceptNum-1]+1) : 1)+"-"+start[conceptNum];
+					if (c < historyClasses.get(i).size()-1) filter += ",";
+				}
+				buf.append("<data id='MC_"+ (i+1) + "' spec='FilteredAlignment' filter='"+ filter +"' data='@data'/>\n");
+				
+			}		
+			buf.append("\"\n}\n");
+			
+		}
+		
+		
 		// One filter per meaning class (MC)
 		buf.append("\"filters\":\"\n");
 		for (int i = 0; i < concepts.size(); i++) {
-				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1] : 1)+"-"+start[i]+"' data='@data'/>\n");
+				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? (start[i-1]+1) : 1)+"-"+start[i]+"' data='@data'/>\n");
 		}		
 		buf.append("\"\n}\n");
 		
@@ -332,9 +385,16 @@ public class TSV2JSON extends TSV2Nexus {
 				+ concepts.size() + ") concepts covered per doculect\n");
 		
 		
+		
+
+		
+		
+		
 		Log.warning("Done!");
 
 	}
+
+
 
 	private void standardiseTokens(String[] token) {
 		if (phonemeMapping.size() > 0) {
@@ -499,6 +559,163 @@ public class TSV2JSON extends TSV2Nexus {
 		return string;
 	}
 
+	
+	
+
+	
+	/*
+	 * Return an assignment of meaning-classes into groups, based on their NJ tree similarities
+	 */
+	private List<List<String>> getHistoryClasses(String[] concepts, String [] docIds, String[] sequences, int[] starts, 
+													Set<String> phonemes, int ntrees){
+		
+		
+		int codelength = 2;
+		
+		
+		// Datatype
+		String codeMap = "";
+		int i = 0;
+		for (String s : phonemes) {
+			codeMap = codeMap + s.toUpperCase() + "=" + i;
+			if (i < phonemes.size()-1) {
+				codeMap += ",";
+			}
+			i++;
+		}
+		UserPhonemeDataType dataType = new UserPhonemeDataType();
+		//System.out.println(phonemes.size() + " " + codeMap);
+		dataType.initByName("codelength", codelength, "states", phonemes.size(), "codeMap", codeMap);
+		
+
+		
+		HashMap<String, String> conceptTopology = new LinkedHashMap<>();
+		for (i = 0; i < concepts.length; i ++) {
+			
+			
+			String concept = concepts[i];
+			int start = (i>0 ? starts[i-1] : 0);
+			int stop = starts[i] - 1;
+			
+			start = start*codelength;
+			stop = (stop+1)*codelength;
+			
+			
+			
+			// Get alignment of subsequences
+			List<Sequence> seqs = new ArrayList<>();
+			for (int j = 0; j < sequences.length; j ++) {
+				String label = docIds[j];
+				String sequence = sequences[j].substring(start, stop);
+				//Log.warning(concept + ": " + label + " has a sequence " + sequence);
+				Sequence seq = new Sequence(label, sequence);
+				seqs.add(seq);
+			}
+			Alignment alignment = new Alignment();
+			alignment.initByName("sequence", seqs, "userDataType", dataType);
+			
+			
+			// Build NJ tree
+			ClusterTree tree = new ClusterTree();
+			tree.initByName("clusterType", Type.upgma, "taxa", alignment);
+			tree.getRoot().sort();
+			String newick = tree.getRoot().toNewick(true);
+			//Log.warning(concept + " : " + newick);
+			conceptTopology.put(concept, newick);
+		 	
+		}
+		
+		
+		// Count the topologies
+		HashMap<String, Integer> topologies = new HashMap<>();
+		for (String topology : conceptTopology.values()) {
+			
+			int count = 1;
+			if (topologies.containsKey(topology)) {
+				count = topologies.get(topology) + 1;
+			}
+			topologies.put(topology, count);
+			
+		}
+		topologies = sortByValue(topologies);
+		
+		
+		// Take the top ntrees topologies
+		List<String> bestTopologies = new ArrayList<>();
+		i = 0;
+		for (String topology : topologies.keySet()) {
+			if (i < ntrees) {
+				bestTopologies.add(topology);
+			}
+			
+			//Log.warning(topologies.get(topology) + " counts of " + topology);
+			i ++;
+			//if (i >= ntrees-1) break;
+		}
+		
+		
+		
+		
+		
+		// Assign each concept to a class based off its topology. If it does not belong to a topology, then assign it at random
+		List<List<String>> groups = new ArrayList<>();
+		int randomAddTo = 0;
+		for (i = 0; i < ntrees; i ++) groups.add(new ArrayList<>());
+		for (String concept : concepts) {
+			
+			String topology = conceptTopology.get(concept);
+			int which = bestTopologies.indexOf(topology);
+			if (which == -1) {
+				
+				//Log.warning(concept + " being assigned to " + randomAddTo + " because it doesn't belong anywhere else");
+				
+				// Disperse it 
+				groups.get(randomAddTo).add(concept);
+				
+				randomAddTo++;
+				if (randomAddTo >= ntrees) randomAddTo = 0;
+				
+			}else {
+				
+				Log.warning(concept + " matched to " + which);
+				groups.get(which).add(concept);
+			}
+			
+		}
+		
+		
+		return groups;
+		
+		
+	}
+	
+	
+	// Sort hashmap by value (decreasing order)
+    private HashMap<String, Integer> sortByValue(HashMap<String, Integer> hm) {
+        // Create a list from elements of HashMap
+        List<Map.Entry<String, Integer> > list =
+               new LinkedList<Map.Entry<String, Integer> >(hm.entrySet());
+ 
+        // Sort the list
+        Collections.sort(list, new Comparator<Map.Entry<String, Integer> >() {
+            public int compare(Map.Entry<String, Integer> o1,
+                               Map.Entry<String, Integer> o2)
+            {
+                return (o2.getValue()).compareTo(o1.getValue());
+            }
+        });
+         
+        // put data from sorted list to hashmap
+        HashMap<String, Integer> temp = new LinkedHashMap<String, Integer>();
+        for (Map.Entry<String, Integer> aa : list) {
+            temp.put(aa.getKey(), aa.getValue());
+        }
+        return temp;
+    }
+	
+	
+	
+	
 
 	private int toCharSeqs(List<C> list, String[] docIds, StringBuilder [] charSeqs, int concept, boolean [][] docHasConcept) {
 		if (list == null) {
