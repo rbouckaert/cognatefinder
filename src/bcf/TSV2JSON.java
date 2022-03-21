@@ -1,6 +1,7 @@
 package bcf;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
@@ -17,12 +18,17 @@ import beast.core.util.Log;
  */
 public class TSV2JSON extends TSV2Nexus {
 
-	final public Input<File> mappingInput = new Input<>("mapping", "phoneme mapping used to preprocess phoneme strings to get rid of infrequently occurring phonemes. "
+	final public Input<File> mappingInput = new Input<>("mapping", "phoneme mapping used to pre-process phoneme strings to get rid of infrequently occurring phonemes. "
 			+ "This is a tab delimited file with first column source phoneme and second column the target phoneme. "
 			+ "All occurrances of source phonemes will be replaced by target phonemes. "
 			+ "Ignored when not specified.");
+
+	final public Input<File> encodingInput = new Input<>("encoding", "phoneme mapping used to post-process phoneme strings to get rid of infrequently non-ascii characters. "
+			+ "Like the mapping file, this is tab delimited with two columns");
+
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
+	Map<String, String> encodingMapping = new HashMap<>();
 	
 	@Override
 	public void initAndValidate() {
@@ -31,31 +37,64 @@ public class TSV2JSON extends TSV2Nexus {
 	}
 
 	
+	String [] token;
+	String [] conceptList;
+	int [] cogid;
+	Set<String> doculects;
+	String [] doculect;
+	String [] docIds;
+	String [] sequence;
+	String [] concept;
+	boolean [] constantZeroColumn;
+	int cognateCount;
+	char [][] cognateCharSeqs;
+	int [] start;
+	
 	@Override
 	public void run() throws Exception {
 		if (tsvInput.get() == null || tsvInput.get().getName().equals("[[none]]")) {
 			throw new IllegalArgumentException("A valid TSV file must be specified");
 		}
 		if (mappingInput.get() != null) {
-			processMapping();
+			processMapping(mappingInput.get(), phonemeMapping);
+		}
+		if (encodingInput.get() != null) {
+			processMapping(encodingInput.get(), encodingMapping);
 		}
 		
 		TSVImporter importer = new TSVImporter(tsvInput.get(), languagesInput.get());
 		
-		String [] token = importer.getColumn("TOKENS");
+		token = importer.getColumn("TOKENS");
 		if (token == null ) {
 			token = importer.getColumn("SEGMENTS");
 		}
 		standardiseTokens(token);
-		int [] cogid = importer.getColumnAsInt("COGID");
-		if (cogid == null ) {
-			cogid = importer.getColumnAsInt("COGNACY");
-		}
-		String [] conceptList = importer.getColumn("CONCEPT");
+		
+		conceptList = importer.getColumn("CONCEPT");
 		if (conceptList == null) {
 			conceptList = importer.getColumn("PARAMETER_ID");
 		}
-		String [] doculect = importer.getColumn("DOCULECT");
+		
+		cogid = importer.getColumnAsInt("COGID");
+		if (cogid == null ) {
+			String [] cognacy = importer.getColumn("COGNACY");
+			cogid = new int[conceptList.length];
+			Map<String,Integer> conceptmap = new HashMap<>();
+			for (int i = 0; i < cogid.length; i++) {
+				String c = cognacy[i];
+				if (c != null && c.trim().length() > 0) {
+					if (!conceptmap.containsKey(c)) {
+						conceptmap.put(c, conceptmap.size() + 1);
+					}
+					cogid[i] = conceptmap.get(c);
+				} else {
+					cogid[i] = -1;
+				}
+			}
+		}
+
+		
+		doculect = importer.getColumn("DOCULECT");
 		if (doculect == null) {
 			doculect = importer.getColumn("LANGUAGE_ID");
 		}
@@ -63,16 +102,17 @@ public class TSV2JSON extends TSV2Nexus {
 		for (String s : doculect) {
 			doculects.add(s);
 		}
-		Set<String> concepts = new LinkedHashSet<>();
+		Set<String> concepts;
+		concepts = new LinkedHashSet<>();
 		for (String s : conceptList) {
 			if (s != null) {
 				concepts.add(s);
 			}
 		}
-		String [] concept = concepts.toArray(new String[]{});
+		concept = concepts.toArray(new String[]{});
 		Arrays.sort(concept);
 		
-		int cognateCount = 0;
+		cognateCount = 0;
 		for (int d : cogid) {
 			cognateCount = Math.max(d, cognateCount);
 		}
@@ -103,8 +143,8 @@ public class TSV2JSON extends TSV2Nexus {
 		for (int i = 0; i < charSeqs.length; i++) {
 			charSeqs[i] = new StringBuilder();
 		}
-		String [] docIds = doculects.toArray(new String[]{});
-		int [] start = new int[concepts.size()];
+		docIds = doculects.toArray(new String[]{});
+		start = new int[concepts.size()];
 		
 		boolean [] done = new boolean[cognateCount];
 		
@@ -128,7 +168,7 @@ public class TSV2JSON extends TSV2Nexus {
 			for (int k = 0; k < conceptList.length; k++) {
 				if (conceptList[k] != null && conceptList[k].equals(c)) {
 					int i = cogid[k];
-					if (!done[i]) {
+					if (cogid[k] >= 0 && !done[i]) {
 						len +=  toCharSeqs(seqs[i], docIds, charSeqs, j, docHasConcept);
 						done[i] = true;
 						cognatePerConcept++;
@@ -145,11 +185,8 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 				
 		
-		Set<String> phonemes = new LinkedHashSet<>();
-		Set<String> vowels = new LinkedHashSet<>();
-		Set<String> consonants = new LinkedHashSet<>();
 		
-		String [] sequence = new String[docIds.length];
+		sequence = new String[docIds.length];
 		for (int i = 0; i < docIds.length; i++) {
 			sequence[i] = cleanUp(charSeqs[i].toString());
 		}
@@ -158,20 +195,27 @@ public class TSV2JSON extends TSV2Nexus {
 
 		
 		// create binary cognate alignment
-		char [][] cognateCharSeqs = new char[doculects.size()][cognateCount];
+		cognateCharSeqs = new char[doculects.size()][cognateCount];
 		for (int i = 0; i < cognateCharSeqs.length; i++) {
 			Arrays.fill(cognateCharSeqs[i],'0');
 		}
 		for (int i = 0; i < cogid.length; i++) {
 			int cogid_ = cogid[i];
-			String doculect_ = doculect[i];
-			if (doculect_ != null) {
-				int k = indexOf(doculect_, docIds);
-				cognateCharSeqs[k][cogid_] = '1';
+			if (cogid_ >= 0) {
+				String doculect_ = doculect[i];
+				if (doculect_ != null) {
+					int k = indexOf(doculect_, docIds);
+					if (cognateCharSeqs[k][cogid_]=='0') {
+						cognateCharSeqs[k][cogid_] = '1';
+					} else {
+						int h = 3;
+						h++;
+					}
+				}
 			}
 		}
 		// check for constant columns
-		boolean [] constantZeroColumn = new boolean[cognateCount];
+		constantZeroColumn = new boolean[cognateCount];
 		for (int k = 1; k < cognateCount; k++) {
 			boolean isConstant = true;
 			
@@ -189,108 +233,9 @@ public class TSV2JSON extends TSV2Nexus {
 				System.err.println("Constant column ("+cognateCharSeqs[0][k]+") in binary sequence at column " + (k+1));
 			}
 		}
-
 		
+		output();
 		
-		// output results
-		StringBuilder buf = new StringBuilder();
-		buf.append("{");
-		buf.append("\"sequences\":\"\n");
-
-		PrintStream out = System.out;
-		if (outputInput.get() != null && !outputInput.get().getName().equals("[[none]]")) {
-			Log.warning("Writing to file " + outputInput.get().getName());
-			out = new PrintStream(outputInput.get());
-		}
-
-		
-		
-		for (int i = 0; i < docIds.length; i++) {
-			if (docIds[i] != null) {
-				buf.append("<sequence taxon='" + docIds[i] + "' ");
-				if (docIds[i].length() < 25) {
-					buf.append("                         ".substring(docIds[i].length()));
-				}
-				buf.append("value='");
-				processPhonemes(sequence[i], phonemes, vowels, consonants);
-				
-				buf.append(sequence[i]);
-				buf.append("'/>\n");
-			}
-		}
-		buf.append("\",\n");
-		
-		buf.append("\"binsequences\":\"\n");
-		for (int i = 0; i < docIds.length; i++) {
-			if (docIds[i] != null) {
-				buf.append("<sequence taxon='" + docIds[i] + "' ");
-				if (docIds[i].length() < 25) {
-					buf.append("                         ".substring(docIds[i].length()));
-				}
-				buf.append("value='");
-				for (int k = 0; k < cognateCount; k++) {
-					if (!constantZeroColumn[k]) {
-						buf.append(cognateCharSeqs[i][k]);
-					}
-				}
-				buf.append("'/>\n");
-			}
-		}
-		buf.append("\",\n");
-
-		buf.append("// _. = gap between words, .. = other cognate, -. = gap due to alignment\n");
-		appendDataType(phonemes, "phonemes", buf);
-		appendDataType(vowels, "vowels", buf);
-		appendDataType(consonants, "consonants", buf);
-
-		buf.append("\"words\":\"");
-		for (int i = 0; i < concepts.size(); i++) {
-			buf.append(concept[i].replaceAll("[ ,]", "_"));
-			buf.append(concept[i].replaceAll("/", "-"));
-			if (i < concepts.size() - 1) {
-				buf.append(",");
-			}
-		}
-		buf.append("\",\n");
-		buf.append("\"words-1\":\"");
-		for (int i = 1; i < concepts.size(); i++) {
-			buf.append(concept[i].replaceAll("[ ,]", "_"));
-			buf.append(concept[i].replaceAll("/", "-"));
-			if (i < concepts.size() - 1) {
-				buf.append(",");
-			}
-		}
-		buf.append("\",\n");
-
-		
-		// Taxonset for multispecies coalescent
-		buf.append("\"taxonset\":\"\n");
-		for (int i = 0; i < docIds.length; i++) {
-			buf.append("<taxon id='" + docIds[i] + ".lang' spec='TaxonSet'>\n");
-			buf.append("\t<taxon id='" + docIds[i] + "' spec='Taxon' />\n");
-			buf.append("</taxon>\n");
-		}
-		buf.append("\",\n");
-		
-		// List of meaning class IDs
-		buf.append("\"meaning-classes\":\"");
-		for (int i = 0; i < concepts.size(); i++) {
-			buf.append("MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_"));
-			if (i < concepts.size()-1) buf.append(",");
-		}		
-		buf.append("\",\n");
-		
-		// One filter per meaning class (MC)
-		buf.append("\"filters\":\"\n");
-		for (int i = 0; i < concepts.size(); i++) {
-				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1] : 1)+"-"+start[i]+"' data='@data'/>\n");
-		}		
-		buf.append("\"\n}\n");
-		
-		
-		
-		out.println(buf.toString());
-
 		// process stats
 		System.err.println();
 		double mean = 0;
@@ -329,49 +274,162 @@ public class TSV2JSON extends TSV2Nexus {
 			System.err.println(doculect[i] + " covered by " + k + " concepts");
 		}
 		System.err.println("On average: " + (mean / doculects.size()) + " (out of "
-				+ concepts.size() + ") concepts covered per doculect\n");
-		
-		
+				+ concept.length + ") concepts covered per doculect\n");
+
 		Log.warning("Done!");
 
 	}
+		
+	private void output() throws FileNotFoundException {
+		// output results
+		StringBuilder buf = new StringBuilder();
+		buf.append("{");
+		buf.append("\"sequences\":\"\n");
+
+		PrintStream out = System.out;
+		if (outputInput.get() != null && !outputInput.get().getName().equals("[[none]]")) {
+			Log.warning("Writing to file " + outputInput.get().getName());
+			out = new PrintStream(outputInput.get());
+		}
+
+		
+		Set<String> phonemes = new LinkedHashSet<>();
+		Set<String> vowels = new LinkedHashSet<>();
+		Set<String> consonants = new LinkedHashSet<>();
+
+		for (int i = 0; i < docIds.length; i++) {
+			if (docIds[i] != null) {
+				buf.append("<sequence taxon='" + docIds[i] + "' ");
+				if (docIds[i].length() < 25) {
+					buf.append("                         ".substring(docIds[i].length()));
+				}
+				buf.append("value='");
+				sequence[i] = processPhonemes(sequence[i], phonemes, vowels, consonants);
+				
+				buf.append(sequence[i]);
+				buf.append("'/>\n");
+			}
+		}
+		buf.append("\",\n");
+		
+		buf.append("\"binsequences\":\"\n");
+		for (int i = 0; i < docIds.length; i++) {
+			if (docIds[i] != null) {
+				buf.append("<sequence taxon='" + docIds[i] + "' ");
+				if (docIds[i].length() < 25) {
+					buf.append("                         ".substring(docIds[i].length()));
+				}
+				buf.append("value='");
+				for (int k = 0; k < cognateCount; k++) {
+					if (!constantZeroColumn[k]) {
+						buf.append(cognateCharSeqs[i][k]);
+					}
+				}
+				buf.append("'/>\n");
+			}
+		}
+		buf.append("\",\n");
+
+		buf.append("// _. = gap between words, .. = other cognate, -. = gap due to alignment\n");
+		appendDataType(phonemes, "phonemes", buf);
+		appendDataType(vowels, "vowels", buf);
+		appendDataType(consonants, "consonants", buf);
+		appendDataTypeWithMissing(phonemes, "phonemes", buf);
+		appendDataTypeWithMissing(vowels, "vowels", buf);
+		appendDataTypeWithMissing(consonants, "consonants", buf);
+
+		buf.append("\"words\":\"");
+		for (int i = 0; i < concept.length; i++) {
+			buf.append(concept[i].replaceAll("[ ,]", "_"));
+			buf.append(concept[i].replaceAll("/", "-"));
+			if (i < concept.length - 1) {
+				buf.append(",");
+			}
+		}
+		buf.append("\",\n");
+		buf.append("\"words-1\":\"");
+		for (int i = 1; i < concept.length; i++) {
+			buf.append(concept[i].replaceAll("[ ,]", "_"));
+			buf.append(concept[i].replaceAll("/", "-"));
+			if (i < concept.length - 1) {
+				buf.append(",");
+			}
+		}
+		buf.append("\",\n");
+
+		
+		// Taxonset for multispecies coalescent
+		buf.append("\"taxonset\":\"\n");
+		for (int i = 0; i < docIds.length; i++) {
+			buf.append("<taxon id='" + docIds[i] + ".lang' spec='TaxonSet'>\n");
+			buf.append("\t<taxon id='" + docIds[i] + "' spec='Taxon' />\n");
+			buf.append("</taxon>\n");
+		}
+		buf.append("\",\n");
+		
+		// List of meaning class IDs
+		buf.append("\"meaning-classes\":\"");
+		for (int i = 0; i < concept.length; i++) {
+			buf.append("MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_"));
+			if (i < concept.length-1) buf.append(",");
+		}		
+		buf.append("\",\n");
+		
+		// One filter per meaning class (MC)
+		buf.append("\"filters\":\"\n");
+		for (int i = 0; i < concept.length; i++) {
+				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1] : 1)+"-"+start[i]+"' data='@data'/>\n");
+		}		
+		buf.append("\"\n}\n");
+		
+		
+		
+		out.println(buf.toString());
+
+	}
+		
 
 	private void standardiseTokens(String[] token) {
 		if (phonemeMapping.size() > 0) {
 			for (int k = 0; k < token.length; k++) {
 				String string = token[k];
-				String [] strs = string.split("\\s");
-				for (int i = 0; i < strs.length; i++) {
-					if (phonemeMapping.containsKey(strs[i])) {
-						strs[i] = phonemeMapping.get(strs[i]);
+				if (string != null) {
+					String [] strs = string.split("\\s");
+					for (int i = 0; i < strs.length; i++) {
+						if (phonemeMapping.containsKey(strs[i])) {
+							strs[i] = phonemeMapping.get(strs[i]);
+						}
+						if (strs[i].length() == 0 || strs[i].length() > 2) {
+							int h = 3;
+							h++;
+						}
 					}
+					
+					StringBuilder b = new StringBuilder();
+					b.append(strs[0]);
+					for (int i = 1; i < strs.length; i++) {
+						b.append(' ');
+						b.append(strs[i]);
+					}
+					string = b.toString();
+					token[k] = string;
 				}
-				
-				StringBuilder b = new StringBuilder();
-				b.append(strs[0]);
-				for (int i = 1; i < strs.length; i++) {
-					b.append(' ');
-					b.append(strs[i]);
-				}
-				string = b.toString();
-				token[k] = string;
 			}
 		}
 	}
 
 
-	private void processMapping() throws IOException {
-		String s = BeautiDoc.load(mappingInput.get());
+	private void processMapping(File file, Map<String,String> phonemeMapping) throws IOException {
+		String s = BeautiDoc.load(file);
 		String [] strs = s.split("\n");
 		for (String str : strs) {
 			if (!str.startsWith("#")) {
 				String [] strs2 = str.split("\t");
 				if (strs2.length == 2) {
-					if (strs2[0].length() == strs2[1].length()) {
-						phonemeMapping.put(strs2[0], strs2[1]);
-					} else {
-						Log.warning("found line with source phoneme length not equal to target phoneme length " + str);
-						Log.warning("the line is ignored");
+					phonemeMapping.put(strs2[0], strs2[1]);
+					if (strs2[1].length()>2) {
+						int h = 3;
+						h++;
 					}
 				} else {
 					Log.warning("found line with " + strs2.length + " columns in mapping file, where 2 are expected: " + str);
@@ -390,7 +448,7 @@ public class TSV2JSON extends TSV2Nexus {
 			int isCons = 0;
 			for (int j = 0; j < sequences.length; j++) {
 				char c = sequences[j].charAt(i);
-				if ("aeoiuy".indexOf(c)>=0) {
+				if ("aeoiuyɛə".indexOf(c)>=0) {
 					isVowel++;
 				}
 				if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
@@ -455,16 +513,42 @@ public class TSV2JSON extends TSV2Nexus {
 			i++;
 		}
  		buf.append("'/>\",\n");
+ 		buf.append("\"gtrSymRates_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)/2) + "\",\n");
+ 		buf.append("\"gtrAsymRates_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)) + "\",\n");
 		
 	}
 
+	private void appendDataTypeWithMissing(Set<String> phonemes, String id, StringBuilder buf) {
+		phonemes.remove("..");
+		String [] phonemes_ = phonemes.toArray(new String[]{});
+		buf.append("\"datatype_"+id+"_M\":\"<userDataType id='" + id + "WithMissing' spec='beast.phoneme.UserPhonemeDataType' states='" + phonemes_.length + "' codelength='2' codeMap='");
+		Arrays.sort(phonemes_);
+		int i = 0;
+		for (String s : phonemes_) {
+			buf.append(s.toUpperCase() + "=" + i);
+			buf.append(",");
+			i++;
+		}
+		buf.append("..=");
+		for (i = 0; i < phonemes.size(); i++) {
+			buf.append(i + " ");			
+		}
+ 		buf.append("'/>\",\n");
+ 		buf.append("\"gtrSymRatesM_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)/2) + "\",\n");
+ 		buf.append("\"gtrAsymRatesM_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)) + "\",\n");		
+	}
 
-	private void processPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants) {
-		for (int i = 0; i < sequence.length(); i+= 2) {
+
+	private String processPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants) {
+		StringBuilder b = new StringBuilder();
+		for (int i = 0; i < sequence.length(); i += 2) {
 			String phoneme = sequence.substring(i, i+2);
+			if (encodingMapping.containsKey(phoneme)) {
+				phoneme = encodingMapping.get(phoneme);
+			}
 			phonemes.add(phoneme);
 			char c = phoneme.charAt(0);
-			if ("aeoiuy".indexOf(c)>=0) {
+			if ("aeoiuyɛə".indexOf(c)>=0) {
 				vowels.add(phoneme);
 			} else {
 				consonants.add(phoneme);
@@ -472,7 +556,9 @@ public class TSV2JSON extends TSV2Nexus {
 					vowels.add(phoneme);
 				}
 			}
+			b.append(phoneme);
 		}
+		return b.toString();
 	}
 
 	
