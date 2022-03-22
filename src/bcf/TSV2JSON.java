@@ -539,8 +539,8 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 		
  		buf.append("'/>\",\n");
- 		buf.append("\"gtrSymRatesM\" + countID + \"_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)/2) + "\",\n");
- 		buf.append("\"gtrAsymRatesM\" + countID + \"_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)) + "\",\n");		
+ 		buf.append("\"gtrSymRatesM" + countID + "_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)/2) + "\",\n");
+ 		buf.append("\"gtrAsymRatesM" + countID + "_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)) + "\",\n");		
 	}
 
 	private String processPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants) {
