@@ -151,6 +151,40 @@ public class TSVImporter {
 		return null;
 	}
 	
+	
+	/**
+	 * Remove rows from the table
+	 * @param remove
+	 */
+	public void removeRows(boolean[] remove) {
+
+		
+		// How many rows needed?
+		int numRows = 0;
+		for (int i = 0; i < remove.length; i ++) {
+			if (!remove[i]) numRows++;
+		}
+		
+		// Take subset
+		String [][] datacolumns2 = new String[this.datacolumns.length][numRows];
+		int newRowNum = 0;
+		for (int oldRowNum = 0; oldRowNum < remove.length; oldRowNum ++) {
+			if (!remove[oldRowNum]) {
+				
+				// Keep the row
+				for (int colNum = 0; colNum < this.datacolumns.length; colNum ++) {
+					datacolumns2[colNum][newRowNum] = datacolumns[colNum][oldRowNum];
+				}
+				newRowNum++;
+			}
+		}
+		
+		
+		this.datacolumns = datacolumns2;
+		
+		
+	}
+	
 	public static void main(String[] args) throws IOException {
 //		TSVImporter io = new TSVImporter(new File("examples/mikronesian.tsv"));
 //		
@@ -247,4 +281,8 @@ public class TSVImporter {
 		
 		System.out.println("Mean: " + sum / wordcount);
 	}
+
+	
+	
+
 }

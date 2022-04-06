@@ -18,18 +18,24 @@ import beast.core.util.Log;
  */
 public class TSV2JSON extends TSV2Nexus {
 
-	final public Input<File> mappingInput = new Input<>("mapping", "phoneme mapping used to pre-process phoneme strings to get rid of infrequently occurring phonemes. "
+	final public Input<File> mappingInput = new Input<>("phoneme", "phoneme mapping used to pre-process phoneme strings to get rid of infrequently occurring phonemes. "
 			+ "This is a tab delimited file with first column source phoneme and second column the target phoneme. "
 			+ "All occurrances of source phonemes will be replaced by target phonemes. "
 			+ "Ignored when not specified.");
 
 	final public Input<File> encodingInput = new Input<>("encoding", "phoneme mapping used to post-process phoneme strings to get rid of infrequently non-ascii characters. "
 			+ "Like the mapping file, this is tab delimited with two columns");
+	
+	
+	final public Input<File> conceptInput = new Input<>("concept", "a list of concepts to remove (each meaning class on a different line in the file)");
 
 	final public Input<Boolean> suppresWordGapInput = new Input<>("suppresWordGap", "removes word gaps (encoded as '+' or '_') from segments", true);
+	final public Input<Boolean> includeLoanInput = new Input<>("loan", "include words marked as loan=true?", true);
+	
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
 	Map<String, String> encodingMapping = new HashMap<>();
+	List<String> conceptRemoval = new ArrayList<>();
 	
 	@Override
 	public void initAndValidate() {
@@ -65,16 +71,94 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		TSVImporter importer = new TSVImporter(tsvInput.get(), languagesInput.get());
 		
-		token = importer.getColumn("TOKENS");
-		if (token == null ) {
-			token = importer.getColumn("SEGMENTS");
-		}
-		standardiseTokens(token);
 		
+		// Concept list
 		conceptList = importer.getColumn("CONCEPT");
 		if (conceptList == null) {
 			conceptList = importer.getColumn("PARAMETER_ID");
 		}
+		if (conceptList == null) throw new IllegalArgumentException("Please ensure there is a column named 'CONCEPT' or 'PARAMETER_ID' which contains meaning classes");
+		
+		
+		// Remove any concepts from the data?
+		if (conceptInput.get() != null) {
+			processList(conceptInput.get(), conceptRemoval);
+			
+			boolean[] remove = new boolean[conceptList.length];
+			for (int i = 0; i < conceptList.length; i ++) {
+				String concept = conceptList[i];
+				boolean isBadWord = conceptRemoval.contains(concept);
+				remove[i] = isBadWord;
+				if (isBadWord) {
+					Log.warning("Removing " + concept + " on row " + (i+1));
+				}
+			}
+			
+			// Remove rows from the table
+			importer.removeRows(remove);
+			conceptList = importer.getColumn("CONCEPT");
+			if (conceptList == null) {
+				conceptList = importer.getColumn("PARAMETER_ID");
+			}
+			
+			
+			
+		}
+		
+		
+		
+		// Doculects
+		doculect = importer.getColumn("DOCULECT");
+		if (doculect == null) {
+			doculect = importer.getColumn("LANGUAGE_ID");
+		}
+		Set<String> doculects = new LinkedHashSet<>();
+		for (String s : doculect) {
+			doculects.add(s);
+		}
+		
+		
+		
+		// Word tokens
+		token = importer.getColumn("TOKENS");
+		if (token == null ) {
+			token = importer.getColumn("SEGMENTS");
+		}
+		// Process tokens (which have not been removed)
+		standardiseTokens(token);
+		
+		
+		// Remove tokens marked as loan?
+		if (!includeLoanInput.get()) {
+			String[] loanStr = importer.getColumn("LOAN");
+			if (loanStr == null) {
+				loanStr = importer.getColumn("Loan");
+				if (loanStr == null) {
+					loanStr = importer.getColumn("loan");
+				}
+			}
+			
+			if (loanStr == null) throw new IllegalArgumentException("Cannot find a column named LOAN / Loan / loan");
+			if (loanStr.length != token.length) throw new IllegalArgumentException("Inconsistent number of rows " + loanStr.length + "!="  + token.length);
+			
+			for (int rowNum = 0; rowNum < loanStr.length; rowNum++) {
+				String val = loanStr[rowNum];
+				boolean loaned = val != null && !val.isEmpty() && val.toLowerCase().trim().equals("true");
+				if (loaned) {
+					Log.warning("Removing '" + token[rowNum] + "' for " + doculect[rowNum] + " (row " + (rowNum+1) + ") because it was borrowed");
+					token[rowNum] = ".";
+				}
+			}
+			
+			
+		}
+		
+		
+		
+		
+
+		
+		
 		
 		cogid = importer.getColumnAsInt("COGID");
 		if (cogid == null ) {
@@ -95,14 +179,7 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 
 		
-		doculect = importer.getColumn("DOCULECT");
-		if (doculect == null) {
-			doculect = importer.getColumn("LANGUAGE_ID");
-		}
-		Set<String> doculects = new LinkedHashSet<>();
-		for (String s : doculect) {
-			doculects.add(s);
-		}
+		
 		Set<String> concepts;
 		concepts = new LinkedHashSet<>();
 		for (String s : conceptList) {
@@ -118,6 +195,8 @@ public class TSV2JSON extends TSV2Nexus {
 			cognateCount = Math.max(d, cognateCount);
 		}
 		cognateCount++;
+		
+
 		
 		boolean [][] docHasConcept = new boolean[doculects.size()][concept.length];
 		
@@ -420,6 +499,19 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 	}
 
+	
+	private void processList(File file, List<String> list) throws IOException {
+		
+		String s = BeautiDoc.load(file);
+		String [] strs = s.split("\n");
+		for (String str : strs) {
+			if (!str.startsWith("#")) {
+				list.add(str);
+			}
+		}
+		
+	}
+	
 
 	private void processMapping(File file, Map<String,String> phonemeMapping) throws IOException {
 		String s = BeautiDoc.load(file);
