@@ -31,6 +31,7 @@ public class TSV2JSON extends TSV2Nexus {
 
 	final public Input<Boolean> suppresWordGapInput = new Input<>("suppresWordGap", "removes word gaps (encoded as '+' or '_') from segments", true);
 	final public Input<Boolean> includeLoanInput = new Input<>("loan", "include words marked as loan=true?", true);
+	final public Input<Boolean> removeConstantCognatesInput = new Input<>("variableOnly", "filter out constant cognates", true);
 	
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
@@ -53,9 +54,12 @@ public class TSV2JSON extends TSV2Nexus {
 	String [] sequence;
 	String [] concept;
 	boolean [] constantZeroColumn;
+	int maxCognateNumber;
 	int cognateCount;
 	char [][] cognateCharSeqs;
-	int [] start;
+	int [] startPhonemes;
+	int [] startCognates;
+	List<Integer> cogidUnique;
 	
 	@Override
 	public void run() throws Exception {
@@ -80,56 +84,43 @@ public class TSV2JSON extends TSV2Nexus {
 		if (conceptList == null) throw new IllegalArgumentException("Please ensure there is a column named 'CONCEPT' or 'PARAMETER_ID' which contains meaning classes");
 		
 		
+		// Remove some rows?
+		boolean[] remove = new boolean[conceptList.length];
+		for (int i = 0; i < conceptList.length; i ++) {
+			remove[i] = false;
+		}
+		
+		
 		// Remove any concepts from the data?
 		if (conceptInput.get() != null) {
 			processList(conceptInput.get(), conceptRemoval);
 			
-			boolean[] remove = new boolean[conceptList.length];
+			
 			for (int i = 0; i < conceptList.length; i ++) {
 				String concept = conceptList[i];
 				boolean isBadWord = conceptRemoval.contains(concept);
-				remove[i] = isBadWord;
+				
 				if (isBadWord) {
 					Log.warning("Removing " + concept + " on row " + (i+1));
+					remove[i] = true;
 				}
 			}
 			
-			// Remove rows from the table
-			importer.removeRows(remove);
-			conceptList = importer.getColumn("CONCEPT");
-			if (conceptList == null) {
-				conceptList = importer.getColumn("PARAMETER_ID");
+		
+		}
+		
+
+		// Remove tokens marked as loan?
+		if (!includeLoanInput.get()) {
+			
+			// Word tokens
+			token = importer.getColumn("TOKENS");
+			if (token == null ) {
+				token = importer.getColumn("SEGMENTS");
 			}
 			
 			
 			
-		}
-		
-		
-		
-		// Doculects
-		doculect = importer.getColumn("DOCULECT");
-		if (doculect == null) {
-			doculect = importer.getColumn("LANGUAGE_ID");
-		}
-		Set<String> doculects = new LinkedHashSet<>();
-		for (String s : doculect) {
-			doculects.add(s);
-		}
-		
-		
-		
-		// Word tokens
-		token = importer.getColumn("TOKENS");
-		if (token == null ) {
-			token = importer.getColumn("SEGMENTS");
-		}
-		// Process tokens (which have not been removed)
-		standardiseTokens(token);
-		
-		
-		// Remove tokens marked as loan?
-		if (!includeLoanInput.get()) {
 			String[] loanStr = importer.getColumn("LOAN");
 			if (loanStr == null) {
 				loanStr = importer.getColumn("Loan");
@@ -145,19 +136,43 @@ public class TSV2JSON extends TSV2Nexus {
 				String val = loanStr[rowNum];
 				boolean loaned = val != null && !val.isEmpty() && val.toLowerCase().trim().equals("true");
 				if (loaned) {
-					Log.warning("Removing '" + token[rowNum] + "' for " + doculect[rowNum] + " (row " + (rowNum+1) + ") because it was borrowed");
-					token[rowNum] = ".";
+					Log.warning("Removing '" + token[rowNum] + "' (row " + (rowNum+1) + ") because it was borrowed");
+					remove[rowNum] = true;
 				}
 			}
-			
 			
 		}
 		
 		
+		// Remove rows from the table
+		importer.removeRows(remove);
+		conceptList = importer.getColumn("CONCEPT");
+		if (conceptList == null) {
+			conceptList = importer.getColumn("PARAMETER_ID");
+		}
 		
+		// Word tokens
+		token = importer.getColumn("TOKENS");
+		if (token == null ) {
+			token = importer.getColumn("SEGMENTS");
+		}
+		
+		
+		// Standardise tokens (which have not been removed)
+		standardiseTokens(token);
+		
+		
+		// Doculects
+		doculect = importer.getColumn("DOCULECT");
+		if (doculect == null) {
+			doculect = importer.getColumn("LANGUAGE_ID");
+		}
+		Set<String> doculects = new LinkedHashSet<>();
+		for (String s : doculect) {
+			doculects.add(s);
+		}
 		
 
-		
 		
 		
 		cogid = importer.getColumnAsInt("COGID");
@@ -177,8 +192,13 @@ public class TSV2JSON extends TSV2Nexus {
 				}
 			}
 		}
-
 		
+		/*
+		for (int i = 0; i < cogid.length; i ++) {
+			System.out.print(cogid[i] + " ");
+		}
+		System.out.println();
+		*/
 		
 		Set<String> concepts;
 		concepts = new LinkedHashSet<>();
@@ -190,18 +210,29 @@ public class TSV2JSON extends TSV2Nexus {
 		concept = concepts.toArray(new String[]{});
 		Arrays.sort(concept);
 		
-		cognateCount = 0;
-		for (int d : cogid) {
-			cognateCount = Math.max(d, cognateCount);
-		}
-		cognateCount++;
 		
+		// Count cognates
+		maxCognateNumber = 0;
+		for (int d : cogid) {
+			maxCognateNumber = Math.max(d, maxCognateNumber);
+		}
+		maxCognateNumber++;
+		
+		cogidUnique = new ArrayList<>();
+		cogidUnique.add(-1); // First site is dummy
+		//startCognates = new int[]
+		for (int s : cogid) {
+			if (s > 0 && !cogidUnique.contains(s)) {
+				cogidUnique.add(s);
+			}
+		}
+		cognateCount = cogidUnique.size();
 
 		
 		boolean [][] docHasConcept = new boolean[doculects.size()][concept.length];
 		
 		// group by cogid
-		List<C> [] seqs = new List[cognateCount];
+		List<C> [] seqs = new List[maxCognateNumber];
 		for (int i = 0; i < cogid.length; i++) {
 			int id = cogid[i];
 			if (id > 0) {
@@ -213,7 +244,7 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 		
 		// align individual cogids
-		for (int i = 0; i < cognateCount; i++) {
+		for (int i = 0; i < maxCognateNumber; i++) {
 			alignCognate(seqs[i], extendGapPenaltyInput.get(), openGapPenaltyInput.get());
 			//alignCognate(seqs[i], 4.5f, -0.9f);
 		}
@@ -224,9 +255,10 @@ public class TSV2JSON extends TSV2Nexus {
 			charSeqs[i] = new StringBuilder();
 		}
 		docIds = doculects.toArray(new String[]{});
-		start = new int[concepts.size()];
+		startPhonemes = new int[concepts.size()];
+		startCognates = new int[concepts.size()];
 		
-		boolean [] done = new boolean[cognateCount];
+		boolean [] done = new boolean[maxCognateNumber];
 		
 		
 		int j = 0;
@@ -242,14 +274,16 @@ public class TSV2JSON extends TSV2Nexus {
 			dataSet[i] = new ArrayList<>();
 		}
 		for (String c : concept) {
-			int len = 0;
+			int lenPhoneme = 0;
+			int lenCognate = 0;
 			int cognatePerConcept = 0;
 			int dataPerConcept = 0;
 			for (int k = 0; k < conceptList.length; k++) {
 				if (conceptList[k] != null && conceptList[k].equals(c)) {
 					int i = cogid[k];
 					if (cogid[k] >= 0 && !done[i]) {
-						len +=  toCharSeqs(seqs[i], docIds, charSeqs, j, docHasConcept);
+						lenPhoneme += toCharSeqs(seqs[i], docIds, charSeqs, j, docHasConcept);
+						lenCognate ++;
 						done[i] = true;
 						cognatePerConcept++;
 					}
@@ -260,7 +294,8 @@ public class TSV2JSON extends TSV2Nexus {
 			conceptSet[cognatePerConcept].add(c);
 			dataPerConceptHistogram[dataPerConcept]++;
 			dataSet[dataPerConcept].add(c);
-			start[j] = len + (j>0?start[j-1] : 0);
+			startPhonemes[j] = lenPhoneme + (j>0?startPhonemes[j-1] : 0);
+			startCognates[j] = lenCognate + (j>0?startCognates[j-1] : 0); 
 			j++;
 		}
 				
@@ -285,15 +320,16 @@ public class TSV2JSON extends TSV2Nexus {
 				String doculect_ = doculect[i];
 				if (doculect_ != null) {
 					int k = indexOf(doculect_, docIds);
-					if (cognateCharSeqs[k][cogid_]=='0') {
-						cognateCharSeqs[k][cogid_] = '1';
+					int siteNum = cogidUnique.indexOf(cogid_);
+					if (siteNum >= 0) {
+						cognateCharSeqs[k][siteNum] = '1';
 					}
 				}
 			}
 		}
 		// check for constant columns
 		constantZeroColumn = new boolean[cognateCount];
-		for (int k = 1; k < cognateCount; k++) {
+		for (int k = 1; k < constantZeroColumn.length; k++) {
 			boolean isConstant = true;
 			
 			char c = cognateCharSeqs[0][k];
@@ -307,7 +343,7 @@ public class TSV2JSON extends TSV2Nexus {
 				if (c == '0') {
 					constantZeroColumn[k] = true;
 				}
-				System.err.println("Constant column ("+cognateCharSeqs[0][k]+") in binary sequence at column " + (k+1));
+				if (removeConstantCognatesInput.get()) System.err.println("Constant column ("+cognateCharSeqs[0][k]+") in binary sequence at column " + (k+1));
 			}
 		}
 		
@@ -398,7 +434,7 @@ public class TSV2JSON extends TSV2Nexus {
 				}
 				buf.append("value='");
 				for (int k = 0; k < cognateCount; k++) {
-					if (!constantZeroColumn[k]) {
+					if (!removeConstantCognatesInput.get() || !constantZeroColumn[k]) {
 						buf.append(cognateCharSeqs[i][k]);
 					}
 				}
@@ -445,6 +481,7 @@ public class TSV2JSON extends TSV2Nexus {
 		// Taxonset for multispecies coalescent
 		buf.append("\"taxonset\":\"\n");
 		for (int i = 0; i < docIds.length; i++) {
+			if (docIds[i] == null || docIds[i].isEmpty()) continue;
 			buf.append("<taxon id='" + docIds[i] + ".lang' spec='TaxonSet'>\n");
 			buf.append("\t<taxon id='" + docIds[i] + "' spec='Taxon' />\n");
 			buf.append("</taxon>\n");
@@ -459,10 +496,24 @@ public class TSV2JSON extends TSV2Nexus {
 		}		
 		buf.append("\",\n");
 		
-		// One filter per meaning class (MC)
-		buf.append("\"filters\":\"\n");
+		
+		// Datatype for cognate filter
+		buf.append("\"covarion-datatype\":\"\n");
+		buf.append("<userDataType id='TwoStateCovarion' spec='beast.evolution.datatype.TwoStateCovarion'/>");
+		buf.append("\",\n");
+		
+		// One filter per meaning class (MC) - cognate
+		buf.append("\"cognate-filters\":\"\n");
 		for (int i = 0; i < concept.length; i++) {
-				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"' spec='FilteredAlignment' filter='"+(i>0 ? start[i-1]+1 : 1)+"-"+start[i]+"' data='@data'/>\n");
+				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"_c' spec='FilteredAlignment' userDataType='@TwoStateCovarion' filter='"+ (1+ (i>0 ? startCognates[i-1]+1 : 1))+"-"+ (1+startCognates[i])+"' data='@binsequences'/>\n");
+		}		
+		buf.append("\",\n");
+		
+		
+		// One filter per meaning class - phonemes
+		buf.append("\"phoneme-filters\":\"\n");
+		for (int i = 0; i < concept.length; i++) {
+				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"_p' spec='FilteredAlignment' filter='"+(i>0 ? startPhonemes[i-1]+1 : 1)+"-"+startPhonemes[i]+"' data='@data'/>\n");
 		}		
 		buf.append("\"\n}\n");
 		
