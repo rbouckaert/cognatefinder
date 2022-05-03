@@ -31,7 +31,9 @@ public class TSV2JSON extends TSV2Nexus {
 
 	final public Input<Boolean> suppresWordGapInput = new Input<>("suppresWordGap", "removes word gaps (encoded as '+' or '_') from segments", true);
 	final public Input<Boolean> includeLoanInput = new Input<>("loan", "include words marked as loan=true?", true);
-	final public Input<Boolean> removeConstantCognatesInput = new Input<>("variableOnly", "filter out constant cognates", true);
+	final public Input<Boolean> removeConstantCognatesInput = new Input<>("variableOnly", "filter out constant cognates", false);
+	
+	final public Input<Integer> minTaxaPerCognateInput = new Input<>("min", "Minimum number of taxa per cognate for the cognate tree to be included", 2);
 	
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
@@ -57,9 +59,15 @@ public class TSV2JSON extends TSV2Nexus {
 	int maxCognateNumber;
 	int cognateCount;
 	char [][] cognateCharSeqs;
-	int [] startPhonemes;
+	int [] startPhonemesMC;
+	int [] startPhonemesCognate;
 	int [] startCognates;
 	List<Integer> cogidUnique;
+	
+	
+	List<String> cognateNumberRange;
+	List<List<String>> taxaPerCognate;
+	
 	
 	@Override
 	public void run() throws Exception {
@@ -255,12 +263,25 @@ public class TSV2JSON extends TSV2Nexus {
 			charSeqs[i] = new StringBuilder();
 		}
 		docIds = doculects.toArray(new String[]{});
-		startPhonemes = new int[concepts.size()];
+		startPhonemesMC = new int[concepts.size()];
 		startCognates = new int[concepts.size()];
+	
+		
 		
 		boolean [] done = new boolean[maxCognateNumber];
 		
 		
+		// Cognate start/finish positions
+		startPhonemesCognate = new int[cognateCount];
+		for (int cognateNum = 1; cognateNum < cognateCount; cognateNum++) {
+			int i = cogidUnique.get(cognateNum);
+			int len = seqs[i].get(0).aligned.characters.length - 2;
+			startPhonemesCognate[cognateNum] = len + (cognateNum > 0 ?startPhonemesCognate[cognateNum-1] : 0);
+		}
+		
+		
+		
+		// Meaning class start/finish positions
 		int j = 0;
 		int MAX = 256;
 		int [] cognatePerConceptHistogram = new int[MAX];
@@ -294,7 +315,7 @@ public class TSV2JSON extends TSV2Nexus {
 			conceptSet[cognatePerConcept].add(c);
 			dataPerConceptHistogram[dataPerConcept]++;
 			dataSet[dataPerConcept].add(c);
-			startPhonemes[j] = lenPhoneme + (j>0?startPhonemes[j-1] : 0);
+			startPhonemesMC[j] = lenPhoneme + (j>0?startPhonemesMC[j-1] : 0);
 			startCognates[j] = lenCognate + (j>0?startCognates[j-1] : 0); 
 			j++;
 		}
@@ -346,6 +367,40 @@ public class TSV2JSON extends TSV2Nexus {
 				if (removeConstantCognatesInput.get()) System.err.println("Constant column ("+cognateCharSeqs[0][k]+") in binary sequence at column " + (k+1));
 			}
 		}
+		
+		
+		
+		
+		// For each cognate, which taxa have a 1?
+		taxaPerCognate = new ArrayList<>();
+		for (int cognateNum = 0; cognateNum < cognateCount; cognateNum++) {
+			List<String> taxa = new ArrayList<>();
+			taxaPerCognate.add(taxa);
+		}
+		for (int i = 0; i < cogid.length; i++) {
+			int cogid_ = cogid[i];
+			if (cogid_ >= 0) {
+				String doculect_ = doculect[i];
+				if (doculect_ != null) {
+					
+					// Cognate index 
+					int cognateIndex = cogidUnique.indexOf(cogid_);
+					if (!taxaPerCognate.get(cognateIndex).contains(doculect_)) {
+						taxaPerCognate.get(cognateIndex).add(doculect_);
+					}
+				}
+			}
+		}
+		
+		
+		// Only include cognates with more than 1 taxon
+		cognateNumberRange = new ArrayList<>();
+		for (int cognateNum = 1; cognateNum < cognateCount; cognateNum++) {
+			if (taxaPerCognate.get(cognateNum).size() >= minTaxaPerCognateInput.get()) {
+				cognateNumberRange.add("" + (cognateNum+1));
+			}
+		}
+		
 		
 		output();
 		
@@ -443,7 +498,7 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 		buf.append("\",\n");
 
-		buf.append("// _. = gap between words, .. = other cognate, -. = gap due to alignment\n");
+		//buf.append("// _. = gap between words, .. = other cognate, -. = gap due to alignment\n");
 		appendDataType(phonemes, "phonemes", buf);
 		appendDataType(vowels, "vowels", buf);
 		appendDataType(consonants, "consonants", buf);
@@ -476,6 +531,14 @@ public class TSV2JSON extends TSV2Nexus {
 			}
 		}
 		buf.append("\",\n");
+		
+		
+		// Cognate numbers with more than 1 taxon
+		buf.append("\"n-cognate-trees\":\"" + cognateNumberRange.size() + "\",\n");
+		buf.append("\"cognate-tree-range\":\"");
+		buf.append(String.join(",", cognateNumberRange));
+		buf.append("\",\n");
+				
 
 		
 		// Taxonset for multispecies coalescent
@@ -488,6 +551,7 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 		buf.append("\",\n");
 		
+		
 		// List of meaning class IDs
 		buf.append("\"meaning-classes\":\"");
 		for (int i = 0; i < concept.length; i++) {
@@ -497,15 +561,150 @@ public class TSV2JSON extends TSV2Nexus {
 		buf.append("\",\n");
 		
 		
+		
+		// List of meaning class IDs (but only ones which have a cognate tree)
+		List<String> conceptsFiltered = new ArrayList<>();
+		for (int i = 2; i < cognateCount+1; i++) {
+			if (!cognateNumberRange.contains("" + i)) continue;
+			int cogid_ = cogidUnique.get(i-1);
+			for (int k = 0; k < conceptList.length; k++) {
+				if (conceptList[k] != null && cogid[k] == cogid_) {
+					String concept = conceptList[k];
+					concept = "MC_" + concept.replaceAll("[ ,]", "_").replaceAll("/", "_");
+					if (!conceptsFiltered.contains(concept)) conceptsFiltered.add(concept);
+				}
+			}
+		}
+		buf.append("\"n-meaning-classes-with-tree\":\"" + conceptsFiltered.size() + "\",\n");
+		buf.append("\"meaning-classes-tree\":\"");
+		buf.append(String.join(",", conceptsFiltered));
+		buf.append("\",\n");
+		
+		
+		
+		// Cognate tree to meaning class rate mapping (mutationRate)
+		buf.append("\"meaning-class-rates\":\"\n");
+		for (int i = 2; i < cognateCount+1; i++) {
+			if (!cognateNumberRange.contains("" + i)) continue;
+			
+			// Get the meaning class of this cogid
+			int cogid_ = cogidUnique.get(i-1);
+			
+			for (int k = 0; k < conceptList.length; k++) {
+				if (conceptList[k] != null && cogid[k] == cogid_) {
+					String concept = conceptList[k];
+					concept = "MC_" + concept.replaceAll("[ ,]", "_").replaceAll("/", "_");
+					buf.append("<parameter id='Tree.t:" + i + "_mutationRate' spec='parameter.CompoundRealParameter' >\n");
+					buf.append("\t<parameter idref='mutationRate.s:" + concept + "' />\n");
+					buf.append("</parameter>\n");
+					break;
+				}
+			}
+			
+		}
+		buf.append("\",\n");
+		
+		
+		// Cognate tree to meaning class rate mapping (tree)
+		buf.append("\"pruned-trees\":\"\n");
+		for (int i = 2; i < cognateCount+1; i++) {
+			if (!cognateNumberRange.contains("" + i)) continue;
+			
+			// Get the meaning class of this cogid
+			int cogid_ = cogidUnique.get(i-1);
+			
+			for (int k = 0; k < conceptList.length; k++) {
+				if (conceptList[k] != null && cogid[k] == cogid_) {
+					String concept = conceptList[k];
+					concept = "MC_" + concept.replaceAll("[ ,]", "_").replaceAll("/", "_");
+					buf.append("<tree id='CognateTree.t:" + i + "' spec='beast.phoneme.CognatePrunedTree' tree='@Tree.t:" + concept + "' birth='@cognateBirth.s:" + i + "' name='stateNode' estimate='true'>\n");
+					buf.append("\t<data id='cognateSite." + i + "' spec='FilteredAlignment' userDataType='@CognateDataType' filter='" + i + "-" + i + "' data='@binsequences' />\n");
+					buf.append("</tree>\n");
+					break;
+				}
+			}
+			
+		}
+		buf.append("\",\n");
+		
+		
+		
+		// Cognate tree to meaning class rate mapping (parallel operator)
+		buf.append("\"parallel-distributions\":\"\n");
+		for (int i = 2; i < cognateCount+1; i++) {
+			if (!cognateNumberRange.contains("" + i)) continue;
+			
+			// Get the meaning class of this cogid
+			int cogid_ = cogidUnique.get(i-1);
+			
+			for (int k = 0; k < conceptList.length; k++) {
+				if (conceptList[k] != null && cogid[k] == cogid_) {
+					String concept = conceptList[k];
+					concept = "MC_" + concept.replaceAll("[ ,]", "_").replaceAll("/", "_");
+					buf.append("<distribution spec='starbeast3.operators.ParallelMCMCTreeOperatorTreeDistribution' geneprior='@treePrior.t:" + concept + "' tree='@Tree.t:" + concept + "' treelikelihood='@CognateBirthLikelihood." + i + "'    id='@par_CognateBirthLikelihood." + i + "' />\n");
+					buf.append("<distribution spec='starbeast3.operators.ParallelMCMCTreeOperatorTreeDistribution' geneprior='@treePrior.t:" + concept + "' tree='@Tree.t:" + concept + "' treelikelihood='@treeLikelihood.cognates." + i + "'   id='@par_treeLikelihood.cognates." + i + "' />\n");
+					buf.append("<distribution spec='starbeast3.operators.ParallelMCMCTreeOperatorTreeDistribution' geneprior='@treePrior.t:" + concept + "' tree='@Tree.t:" + concept + "' treelikelihood='@treeLikelihood.vowels." + i + "'     id='@par_treeLikelihood.vowels." + i + "' />\n");
+					buf.append("<distribution spec='starbeast3.operators.ParallelMCMCTreeOperatorTreeDistribution' geneprior='@treePrior.t:" + concept + "' tree='@Tree.t:" + concept + "' treelikelihood='@treeLikelihood.consonants." + i + "' id='@par_treeLikelihood.consonants." + i + "' />\n");
+					break;
+				}
+			}
+			
+		}
+		buf.append("\",\n");
+		
+		
+
+
+		
+		// Cognate trees and alignments
+		buf.append("\"cognate-trees\":\"\n");
+		for (int i = 2; i < cognateCount+1; i++) {
+			if (!cognateNumberRange.contains("" + i)) continue;
+			int j = i-1;
+			buf.append("<tree id='Tree.t:" + i + "' spec='beast.evolution.tree.Tree' name='stateNode' estimate='true'>\n");
+			buf.append("\t<taxonset id='taxonset-" + i + "' spec='TaxonSet'>\n");
+			buf.append("\t\t<alignment id='cognate_" + i + "' spec='beast.phoneme.TaxonFilteredAlignment' filter='"+(j>0 ? startPhonemesCognate[j-1]+1 : 1)+"-"+startPhonemesCognate[j]+"' data='@data'>\n");
+			buf.append("\t\t\t<taxonset spec='TaxonSet'>\n");
+			for (String taxon : taxaPerCognate.get(j)) {
+				buf.append("\t\t\t\t<taxon idref='" + taxon + "' />\n");
+			}
+			buf.append("\t\t\t</taxonset>\n");
+			buf.append("\t\t</alignment>\n");
+			buf.append("\t</taxonset>\n");
+			buf.append("</tree>\n");
+		}
+		buf.append("\",\n");
+		
+		
+		
+		
+		// 1 phoneme filter per cognate
+		buf.append("\"phoneme-cognate-filters\":\"\n");
+		for (int i = 2; i < cognateCount+1; i++) {
+			if (!cognateNumberRange.contains("" + i)) continue;
+			int j = i-1;
+			buf.append("\t<alignment id='phoneme_cognate_" + i + "' spec='FilteredAlignment' filter='"+(j>0 ? startPhonemesCognate[j-1]+1 : 1)+"-"+startPhonemesCognate[j]+"' data='@data' />\n");
+		}
+		buf.append("\",\n");
+		
+		
 		// Datatype for cognate filter
 		buf.append("\"covarion-datatype\":\"\n");
-		buf.append("<userDataType id='TwoStateCovarion' spec='beast.evolution.datatype.TwoStateCovarion'/>");
+		buf.append("<userDataType id='CognateDataType' spec='beast.evolution.datatype.TwoStateCovarion'/>");
+		buf.append("\",\n");
+		
+		
+		
+		
+		// Datatype for PD cognate filter
+		buf.append("\"pd-covarion-datatype\":\"\n");
+		buf.append("<userDataType id='CognateDataType' spec='beast.evolution.datatype.UserDataType' states='3' codelength='1' codeMap='A = 0,B = 1,C = 2,1 = 0 1,0 = 2,? = 0 1 2,- = 0 1 2' />\n");
 		buf.append("\",\n");
 		
 		// One filter per meaning class (MC) - cognate
 		buf.append("\"cognate-filters\":\"\n");
 		for (int i = 0; i < concept.length; i++) {
-				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"_c' spec='FilteredAlignment' userDataType='@TwoStateCovarion' filter='"+ (1+ (i>0 ? startCognates[i-1]+1 : 1))+"-"+ (1+startCognates[i])+"' data='@binsequences'/>\n");
+				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"_c' spec='FilteredAlignment' userDataType='@CognateDataType' filter='"+ (1+ (i>0 ? startCognates[i-1]+1 : 1))+"-"+ (1+startCognates[i])+"' data='@binsequences'/>\n");
 		}		
 		buf.append("\",\n");
 		
@@ -513,7 +712,7 @@ public class TSV2JSON extends TSV2Nexus {
 		// One filter per meaning class - phonemes
 		buf.append("\"phoneme-filters\":\"\n");
 		for (int i = 0; i < concept.length; i++) {
-				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"_p' spec='FilteredAlignment' filter='"+(i>0 ? startPhonemes[i-1]+1 : 1)+"-"+startPhonemes[i]+"' data='@data'/>\n");
+				buf.append("<data id='MC_" + concept[i].replaceAll("[ ,]", "_").replaceAll("/", "_") +"_p' spec='FilteredAlignment' filter='"+(i>0 ? startPhonemesMC[i-1]+1 : 1)+"-"+startPhonemesMC[i]+"' data='@data'/>\n");
 		}		
 		buf.append("\"\n}\n");
 		
