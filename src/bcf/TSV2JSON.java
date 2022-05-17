@@ -18,7 +18,7 @@ import beast.core.util.Log;
  */
 public class TSV2JSON extends TSV2Nexus {
 
-	final public Input<File> mappingInput = new Input<>("phoneme", "phoneme mapping used to pre-process phoneme strings to get rid of infrequently occurring phonemes. "
+	final public Input<File> mappingInput = new Input<>("map", "phoneme mapping used to pre-process phoneme strings to get rid of infrequently occurring phonemes. "
 			+ "This is a tab delimited file with first column source phoneme and second column the target phoneme. "
 			+ "All occurrances of source phonemes will be replaced by target phonemes. "
 			+ "Ignored when not specified.");
@@ -35,6 +35,9 @@ public class TSV2JSON extends TSV2Nexus {
 	
 	final public Input<Integer> minTaxaPerCognateInput = new Input<>("min", "Minimum number of taxa per cognate for the cognate tree to be included", 2);
 	
+	final static String VOWEL     = "aeoiuyɛəø";
+	final static String CONSONANT = "bdfghjklmnprsttvwŋɢʃʔβ";
+
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
 	Map<String, String> encodingMapping = new HashMap<>();
@@ -175,7 +178,7 @@ public class TSV2JSON extends TSV2Nexus {
 		if (doculect == null) {
 			doculect = importer.getColumn("LANGUAGE_ID");
 		}
-		Set<String> doculects = new LinkedHashSet<>();
+		doculects = new LinkedHashSet<>();
 		for (String s : doculect) {
 			doculects.add(s);
 		}
@@ -439,13 +442,12 @@ public class TSV2JSON extends TSV2Nexus {
 				}
 			}
 			mean += k;
-			System.err.println(doculect[i] + " covered by " + k + " concepts");
+			System.err.println(docIds[i] + " covered by " + k + " concepts");
 		}
 		System.err.println("On average: " + (mean / doculects.size()) + " (out of "
 				+ concept.length + ") concepts covered per doculect\n");
 
 		Log.warning("Done!");
-
 	}
 		
 	private void output() throws FileNotFoundException {
@@ -788,10 +790,10 @@ public class TSV2JSON extends TSV2Nexus {
 			int isCons = 0;
 			for (int j = 0; j < sequences.length; j++) {
 				char c = sequences[j].charAt(i);
-				if ("aeoiuyɛə".indexOf(c)>=0) {
+				if (VOWEL.indexOf(c)>=0) {
 					isVowel++;
 				}
-				if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
+				if (CONSONANT.indexOf(c)>=0) {
 					isCons++;
 				}
 			}
@@ -816,14 +818,14 @@ public class TSV2JSON extends TSV2Nexus {
 				if (isVowel < isCons) {
 					for (int j = 0; j < sequences.length; j++) {
 						char c = sequences[j].charAt(i);
-						if ("aeoiuy".indexOf(c)>=0) {
+						if (VOWEL.indexOf(c)>=0) {
 							sequences[j] = sequences[j].substring(0, i) + "-." + sequences[j].substring(i+2); 
 						}
 					}					
 				} else {
 					for (int j = 0; j < sequences.length; j++) {
 						char c = sequences[j].charAt(i);
-						if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
+						if (CONSONANT.indexOf(c)>=0) {
 							sequences[j] = sequences[j].substring(0, i) + "-." + sequences[j].substring(i+2); 
 						}
 					}					
@@ -884,7 +886,7 @@ public class TSV2JSON extends TSV2Nexus {
  		buf.append("\"gtrSymRatesM" + countID + "_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)/2) + "\",\n");
  		buf.append("\"gtrAsymRatesM" + countID + "_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)) + "\",\n");		
 	}
-
+	
 	private String processPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants) {
 		StringBuilder b = new StringBuilder();
 		for (int i = 0; i < sequence.length(); i += 2) {
@@ -894,7 +896,7 @@ public class TSV2JSON extends TSV2Nexus {
 			}
 			phonemes.add(phoneme);
 			char c = phoneme.charAt(0);
-			if ("aeoiuyɛə".indexOf(c)>=0) {
+			if (VOWEL.indexOf(c)>=0) {
 				vowels.add(phoneme);
 			} else {
 				consonants.add(phoneme);
