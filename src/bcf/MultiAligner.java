@@ -259,9 +259,14 @@ s = new String[] {
 
 
 	public static Seq [] multiAlign(String[] s, Score matrix, float openGapPenalty, float extendGapPenalty) {
+		//System.err.println(Arrays.toString(s));
+		
 		String[][] seqs = new String[s.length][];
 		String [] ids = new String[s.length];
 		for (int i = 0; i < s.length; i++) {
+			if (s[i] == null) {
+				s[i]=" ";
+			}
 			seqs[i] = ("x " + s[i].trim() + " x").split(" ");
 			ids[i] = "id" + (i+1);
 		}

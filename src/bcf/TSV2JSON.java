@@ -35,7 +35,7 @@ public class TSV2JSON extends TSV2Nexus {
 	
 	final public Input<Integer> minTaxaPerCognateInput = new Input<>("min", "Minimum number of taxa per cognate for the cognate tree to be included", 2);
 	
-	final static String VOWEL     = "aeoiuyɛəø";
+	final static String VOWEL     = "aeoiuyɛəøæœɨɔ";
 	final static String CONSONANT = "bdfghjklmnprsttvwŋɢʃʔβ";
 
 	
@@ -250,7 +250,10 @@ public class TSV2JSON extends TSV2Nexus {
 				if (seqs[id] == null) {
 					seqs[id] = new ArrayList<>();
 				}
-				seqs[id].add(new C(token[i], doculect[i]));
+				C c = new C(token[i], doculect[i]);
+				if (token[i] != null) {
+					seqs[id].add(c);
+				}
 			}
 		}
 		
@@ -278,7 +281,10 @@ public class TSV2JSON extends TSV2Nexus {
 		startPhonemesCognate = new int[cognateCount];
 		for (int cognateNum = 1; cognateNum < cognateCount; cognateNum++) {
 			int i = cogidUnique.get(cognateNum);
-			int len = seqs[i].get(0).aligned.characters.length - 2;
+			int len = 0; 
+			if (seqs[i].size() > 0) {
+				len = seqs[i].get(0).aligned.characters.length - 2;
+			}
 			startPhonemesCognate[cognateNum] = len + (cognateNum > 0 ?startPhonemesCognate[cognateNum-1] : 0);
 		}
 		
@@ -935,7 +941,7 @@ public class TSV2JSON extends TSV2Nexus {
 
 
 	private int toCharSeqs(List<C> list, String[] docIds, StringBuilder [] charSeqs, int concept, boolean [][] docHasConcept) {
-		if (list == null) {
+		if (list == null || list.size() == 0) {
 			return 0;
 		}
 		int len = list.get(0).aligned.characters.length - 2;
