@@ -204,7 +204,7 @@ public class TSV2Nexus extends Runnable {
 	}
 
 	protected void alignCognate(List<C> list, float openGapPenalty, float extendGapPenalty) {
-		if (list == null) {
+		if (list == null || list.size() == 0) {
 			return;
 		}
 		if (list.size() == 1) {
