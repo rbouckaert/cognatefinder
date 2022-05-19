@@ -35,9 +35,8 @@ public class TSV2JSON extends TSV2Nexus {
 	
 	final public Input<Integer> minTaxaPerCognateInput = new Input<>("min", "Minimum number of taxa per cognate for the cognate tree to be included", 2);
 	
-	
-	final static String VOWEL     = "aeoiuyɛəøæœɨɔ";
-	final static String CONSONANT = "bdfghjklmnprsttvwŋɢʃʔβ";
+	final static String GAPS      = "-._";
+	final static String VOWEL     = "aᴀãɑáàāǎâäăạаåɛæɜɐʌeᴇəɘɤèéēěêɚǝẽĕḛεеęȇëƐiɪɨɿʅɯĩíǐìîīıĭḭɩïịๅœɞɔøɵoõóòōɶôɷǒöŏʮọȯốǫṍyỹṳṵʏʉuᴜʊúùũüŭǔụūỳûýўȗṹ";
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
 	Map<String, String> encodingMapping = new HashMap<>();
@@ -47,6 +46,7 @@ public class TSV2JSON extends TSV2Nexus {
 	public void initAndValidate() {
 		matrix = new DolgoScore();
 		matrix = new SCAScore();
+
 	}
 
 	
@@ -831,7 +831,7 @@ public class TSV2JSON extends TSV2Nexus {
 				if (VOWEL.indexOf(c)>=0) {
 					isVowel++;
 				}
-				if (CONSONANT.indexOf(c)>=0) {
+				else if (GAPS.indexOf(c) == -1) {
 					isCons++;
 				}
 			}
@@ -863,7 +863,7 @@ public class TSV2JSON extends TSV2Nexus {
 				} else {
 					for (int j = 0; j < sequences.length; j++) {
 						char c = sequences[j].charAt(i);
-						if (CONSONANT.indexOf(c)>=0) {
+						if (VOWEL.indexOf(c) < 0) {
 							sequences[j] = sequences[j].substring(0, i) + "-." + sequences[j].substring(i+2); 
 						}
 					}					
@@ -929,20 +929,21 @@ public class TSV2JSON extends TSV2Nexus {
 		StringBuilder b = new StringBuilder();
 		for (int i = 0; i < sequence.length(); i += 2) {
 			String phoneme = sequence.substring(i, i+2);
+			String phonemeEncoded = phoneme;
 			if (encodingMapping.containsKey(phoneme)) {
-				phoneme = encodingMapping.get(phoneme);
+				phonemeEncoded = encodingMapping.get(phoneme);
 			}
-			phonemes.add(phoneme);
+			phonemes.add(phonemeEncoded);
 			char c = phoneme.charAt(0);
 			if (VOWEL.indexOf(c)>=0) {
-				vowels.add(phoneme);
+				vowels.add(phonemeEncoded);
 			} else {
-				consonants.add(phoneme);
+				consonants.add(phonemeEncoded);
 				if (phoneme.equals("..") || phoneme.equals("-.") || phoneme.equals("_.")) {
-					vowels.add(phoneme);
+					vowels.add(phonemeEncoded);
 				}
 			}
-			b.append(phoneme);
+			b.append(phonemeEncoded);
 		}
 		return b.toString();
 	}
