@@ -30,7 +30,7 @@ public class TSV2JSON extends TSV2Nexus {
 	final public Input<File> conceptInput = new Input<>("concept", "a list of concepts to remove (each meaning class on a different line in the file)");
 
 	final public Input<Boolean> suppresWordGapInput = new Input<>("suppresWordGap", "removes word gaps (encoded as '+' or '_') from segments", true);
-	final public Input<Boolean> includeLoanInput = new Input<>("loan", "include words marked as loan=true?", true);
+	final public Input<Boolean> includeLoanInput = new Input<>("loan", "include words marked as loan=true?", false);
 	final public Input<Boolean> removeConstantCognatesInput = new Input<>("variableOnly", "filter out constant cognates", false);
 	
 	final public Input<Integer> minTaxaPerCognateInput = new Input<>("min", "Minimum number of taxa per cognate for the cognate tree to be included", 2);
@@ -80,10 +80,10 @@ public class TSV2JSON extends TSV2Nexus {
 			throw new IllegalArgumentException("A valid TSV file must be specified");
 		}
 		if (mappingInput.get() != null) {
-			processMapping(mappingInput.get(), phonemeMapping);
+			processMapping(mappingInput.get(), phonemeMapping, false);
 		}
 		if (encodingInput.get() != null) {
-			processMapping(encodingInput.get(), encodingMapping);
+			processMapping(encodingInput.get(), encodingMapping, true);
 		}
 		
 		TSVImporter importer = new TSVImporter(tsvInput.get(), languagesInput.get());
@@ -798,14 +798,19 @@ public class TSV2JSON extends TSV2Nexus {
 	}
 	
 
-	private void processMapping(File file, Map<String,String> phonemeMapping) throws IOException {
+	private void processMapping(File file, Map<String,String> phonemeMapping, boolean keysToLowerCase) throws IOException {
 		String s = BeautiDoc.load(file);
 		String [] strs = s.split("\n");
 		for (String str : strs) {
 			if (!str.startsWith("#")) {
 				String [] strs2 = str.split("\t");
 				if (strs2.length == 2) {
-					phonemeMapping.put(strs2[0], strs2[1]);
+					String key = strs2[0];
+					String value = strs2[1];
+					if (keysToLowerCase) {
+						key = key.toLowerCase();
+					}
+					phonemeMapping.put(key, value);
 				} else {
 					Log.warning("found line with " + strs2.length + " columns in mapping file, where 2 are expected: " + str);
 					Log.warning("the line is ignored");
@@ -851,14 +856,14 @@ public class TSV2JSON extends TSV2Nexus {
 				if (isVowel < isCons) {
 					for (int j = 0; j < sequences.length; j++) {
 						char c = sequences[j].charAt(i);
-						if ("aeoiuy".indexOf(c)>=0) {
+						if (VOWEL.indexOf(c)>=0) {
 							sequences[j] = sequences[j].substring(0, i) + "-." + sequences[j].substring(i+2); 
 						}
 					}					
 				} else {
 					for (int j = 0; j < sequences.length; j++) {
 						char c = sequences[j].charAt(i);
-						if ("bdfghjklmnprsttvwŋɢʃʔβ".indexOf(c)>=0) {
+						if (CONSONANT.indexOf(c)>=0) {
 							sequences[j] = sequences[j].substring(0, i) + "-." + sequences[j].substring(i+2); 
 						}
 					}					
