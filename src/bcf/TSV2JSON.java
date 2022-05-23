@@ -488,7 +488,7 @@ public class TSV2JSON extends TSV2Nexus {
 					buf.append("                         ".substring(docIds[i].length()));
 				}
 				buf.append("value='");
-				sequence[i] = processPhonemes(sequence[i], phonemes, vowels, consonants);
+				sequence[i] = processPhonemes(sequence[i], phonemes, vowels, consonants, encodingMapping);
 				
 				buf.append(sequence[i]);
 				buf.append("'/>\n");
@@ -798,7 +798,7 @@ public class TSV2JSON extends TSV2Nexus {
 	}
 	
 
-	private void processMapping(File file, Map<String,String> phonemeMapping, boolean keysToLowerCase) throws IOException {
+	public static void processMapping(File file, Map<String,String> phonemeMapping, boolean keysToLowerCase) throws IOException {
 		String s = BeautiDoc.load(file);
 		String [] strs = s.split("\n");
 		for (String str : strs) {
@@ -925,12 +925,12 @@ public class TSV2JSON extends TSV2Nexus {
  		buf.append("\"gtrAsymRatesM" + countID + "_" + id + "\":\"" + (phonemes.size() * (phonemes.size()-1)) + "\",\n");		
 	}
 
-	private String processPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants) {
+	public static String processPhonemes(String sequence, Set<String> phonemes, Set<String> vowels, Set<String> consonants, Map<String, String> encodingMapping) {
 		StringBuilder b = new StringBuilder();
 		for (int i = 0; i < sequence.length(); i += 2) {
 			String phoneme = sequence.substring(i, i+2);
 			String phonemeEncoded = phoneme;
-			if (encodingMapping.containsKey(phoneme)) {
+			if (encodingMapping != null && encodingMapping.containsKey(phoneme)) {
 				phonemeEncoded = encodingMapping.get(phoneme);
 			}
 			phonemes.add(phonemeEncoded);
