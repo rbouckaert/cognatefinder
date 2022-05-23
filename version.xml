@@ -1,4 +1,17 @@
 <package name='cognatefinder' version='0.0.1'>
 	<depends on='beast2' atleast='2.6.2'/>
 	<depends on='BEASTLabs' atleast='1.9.3'/>
+
+
+
+	<packageapp description="ConvertToIPA"
+              class="bcf.ConvertToIPA"
+              args=""
+            />
+
+	<packageapp description="TSV2JSON"
+              class="bcf.TSV2JSON"
+              args=""
+            />
+
 </package>

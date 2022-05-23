@@ -73,7 +73,7 @@
 		<mkdir dir="${buildcognatefinder}" />
 
 		<!-- Compile the java code from ${srccognatefinder} into ${buildcognatefinder} /bin -->
-		<javac target="1.8" srcdir="${srccognatefinder}" destdir="${buildcognatefinder}" classpathref="classpath"
+		<javac srcdir="${srccognatefinder}" destdir="${buildcognatefinder}" classpathref="classpath"
 		       fork="true"
 		       memoryinitialsize="256m"
 		       memorymaximumsize="256m"
