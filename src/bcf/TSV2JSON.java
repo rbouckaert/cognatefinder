@@ -27,6 +27,9 @@ public class TSV2JSON extends TSV2Nexus {
 			+ "Like the mapping file, this is tab delimited with two columns");
 	
 	
+	final public Input<File> languageMapInput = new Input<>("languageMap", "Map languages from abbreviations into full names"
+			+ "Like the mapping file, this is tab delimited with two columns");
+	
 	final public Input<File> conceptInput = new Input<>("concept", "a list of concepts to remove (each meaning class on a different line in the file)");
 
 	final public Input<Boolean> suppresWordGapInput = new Input<>("suppresWordGap", "removes word gaps (encoded as '+' or '_') from segments", true);
@@ -40,6 +43,7 @@ public class TSV2JSON extends TSV2Nexus {
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
 	Map<String, String> encodingMapping = new HashMap<>();
+	Map<String, String> languageMapping = new HashMap<>();
 	List<String> conceptRemoval = new ArrayList<>();
 	
 	@Override
@@ -80,11 +84,15 @@ public class TSV2JSON extends TSV2Nexus {
 			throw new IllegalArgumentException("A valid TSV file must be specified");
 		}
 		if (mappingInput.get() != null) {
-			processMapping(mappingInput.get(), phonemeMapping, false);
+			processMapping(mappingInput.get(), phonemeMapping, false, false);
 		}
 		if (encodingInput.get() != null) {
-			processMapping(encodingInput.get(), encodingMapping, true);
+			processMapping(encodingInput.get(), encodingMapping, true, false);
 		}
+		if (languageMapInput.get() != null) {
+			processMapping(languageMapInput.get(), languageMapping, false, false);
+		}
+		
 		
 		TSVImporter importer = new TSVImporter(tsvInput.get(), languagesInput.get());
 		
@@ -180,6 +188,17 @@ public class TSV2JSON extends TSV2Nexus {
 		if (doculect == null) {
 			doculect = importer.getColumn("LANGUAGE_ID");
 		}
+		
+		// Mapping?
+		for (int i = 0; i < doculect.length; i++) {
+			Log.warning(doculect[i]);
+			if (languageMapping.containsKey(doculect[i])) {
+				//Log.warning("Mapping language " + doculect[i] + " to " +  languageMapping.get(doculect[i]));
+				doculect[i] = languageMapping.get(doculect[i]);
+			}
+		}
+		
+		
 		doculects = new LinkedHashSet<>();
 		for (String s : doculect) {
 			doculects.add(s);
@@ -798,7 +817,7 @@ public class TSV2JSON extends TSV2Nexus {
 	}
 	
 
-	public static void processMapping(File file, Map<String,String> phonemeMapping, boolean keysToLowerCase) throws IOException {
+	public static void processMapping(File file, Map<String,String> phonemeMapping, boolean keysToLowerCase, boolean reverseKey) throws IOException {
 		String s = BeautiDoc.load(file);
 		String [] strs = s.split("\n");
 		for (String str : strs) {
@@ -810,7 +829,12 @@ public class TSV2JSON extends TSV2Nexus {
 					if (keysToLowerCase) {
 						key = key.toLowerCase();
 					}
-					phonemeMapping.put(key, value);
+					if (reverseKey) {
+						phonemeMapping.put(value, key);
+					}else {
+						phonemeMapping.put(key, value);
+					}
+					
 				} else {
 					Log.warning("found line with " + strs2.length + " columns in mapping file, where 2 are expected: " + str);
 					Log.warning("the line is ignored");

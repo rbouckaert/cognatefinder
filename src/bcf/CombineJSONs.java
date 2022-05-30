@@ -154,6 +154,10 @@ public class CombineJSONs extends Runnable {
 			json.put(id, xml);
 			
 			
+			// Number of gtr rates
+			json.put("gtrSymRatesM2_" + arrName, nstates*(nstates-1) / 2);
+			json.put("gtrAsymRatesM2_" + arrName, nstates*(nstates-1));
+			
 		}
 		json.put("languages", String.join(",", languages));
 		

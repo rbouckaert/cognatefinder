@@ -2,8 +2,9 @@ package bcf;
 
 import java.io.File;
 import java.io.PrintStream;
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -18,6 +19,7 @@ import beast.core.Description;
 import beast.core.Input;
 import beast.core.Runnable;
 import beast.core.util.Log;
+import beast.util.LogAnalyser;
 
 @Description("Convert a list of phonemes separated by '/', or with modifiers (e.g. superscripts, long sounds) into IPA, or give a warning when not possible")
 public class ConvertToIPA extends Runnable {
@@ -29,10 +31,17 @@ public class ConvertToIPA extends Runnable {
 	public Input<Boolean> splitDipthongsInput = new Input<>("dipthong", "set true to split dipthongs into 2 phonemes", true);
 	public Input<Boolean> removeLongConsonantsInput = new Input<>("removeLongConsonants", "set true to remove the long modifier from consonants", true);
 	
-	
-	
+	public Input<File> rateLogInput = new Input<>("log", "Optional file of GTR rates, for merging low-frequency states together");
+	public Input<Double> minInput = new Input<>("min", "Smallest frequency of a phoneme accepted before discarding it (and merge the rest using the log file). Only used if log is set", 0.005);
+	public Input<Integer> burnInPercentageInput = new Input<>("burnin", "percentage of rates to used as burn-in (and will be ignored)", 10);
+	public Input<File> asciiInput = new Input<>("ascii", "For mapping rate column names into non-ascii. tab delimited with two columns (1st column non-ascii, 2nd column ascii)");
 	
 	Map<String, String> encodingMapping = new HashMap<>();
+	Map<String, String> asciiMapping = new HashMap<>();
+	
+	String [] rateLabels;
+	
+	
 	
 	// https://www.internationalphoneticassociation.org/IPAcharts/IPA_chart_orig/IPA_charts_E.html
 	// 2020
@@ -65,7 +74,7 @@ public class ConvertToIPA extends Runnable {
 		
 		
 		// Load in data
-		if (encodingInput.get() != null) TSV2JSON.processMapping(encodingInput.get(), encodingMapping, true);
+		if (encodingInput.get() != null) TSV2JSON.processMapping(encodingInput.get(), encodingMapping, true, false);
 		TSVImporter importer = new TSVImporter(tsvInput.get(), languagesInput.get());
 		
 		
@@ -269,13 +278,136 @@ public class ConvertToIPA extends Runnable {
 		
 		
 		// Quality check: make sure that either colons OR diamonds are used, but not both
-		
-		
-		
 
 		
 		// Sort by vaue
 		phonemeMapping = sortTableByValue(phonemeMapping);
+		Collections.sort(uniqueMapped);
+		
+		
+		
+		// Rank encoded phonemes according to their new count
+		HashMap<String, Integer> phonemesReduced = new HashMap<>();
+		int countSum = 0;
+		for (String state : uniqueMapped) {
+			int count = 0;
+			
+			// Find all symbols which were mapped to this state
+			for (String symbol : phonemes.keySet()) {
+				if (phonemeMapping.get(symbol).equals(state)) {
+					count = count + phonemes.get(symbol);
+				}
+			}
+			phonemesReduced.put(state, count);
+			countSum += count;
+		}
+		phonemesReduced = sortTableByCount(phonemesReduced);
+		
+		Log.warning("Mapped to reduced state of phonemes:");
+		List<String> statesBelowThreshold = new ArrayList<>();
+		boolean pastThreshold = false;
+		for (String phoneme : phonemesReduced.keySet()) {
+			double percentage = 100.0 * phonemesReduced.get(phoneme) / countSum;
+			
+			
+			
+			if (!pastThreshold && percentage <= minInput.get()*100) {
+				Log.warning("---------- <" + (minInput.get()*100) + "% ----------");
+				pastThreshold = true;
+			}
+			
+			Log.warning("State '" + phoneme + "' (" + sf(percentage, 3) + "%)");
+			
+
+			if (pastThreshold) {
+				statesBelowThreshold.add(phoneme);
+			}
+			
+			
+		}
+		Log.warning("\n");
+		
+		
+		
+		// Merge low states
+		if (this.rateLogInput.get() != null) {
+			
+			
+			// Open rate log file
+			LogAnalyser tracelog = new LogAnalyser(rateLogInput.get().getPath(), burnInPercentageInput.get(), true, false);
+			
+			// Encoding into non-ascii?
+			if (asciiInput.get() != null) {
+				TSV2JSON.processMapping(asciiInput.get(), asciiMapping, true, true);
+			}
+			
+			/*
+			double[][] rateMatrix = new double[uniqueMapped.size()][uniqueMapped.size()];
+			for (int i = 0; i < uniqueMapped.size(); i ++) {
+				String si = uniqueMapped.get(i);
+				for (int j = i+1; j < uniqueMapped.size(); j ++) {
+					String sj = uniqueMapped.get(j);
+					double rate = getTransitionRate(si, sj, tracelog, asciiMapping);
+					rateMatrix[i][j] = rate;
+					rateMatrix[j][i] = rateMatrix[i][j];
+				}
+				
+			}
+			*/
+			
+			
+			List<String> uniqueMappedOld = new ArrayList<>();
+			for (String x : uniqueMapped) uniqueMappedOld.add(x);
+			
+			// Map each low frequency state to its most similar one
+			for (String state : statesBelowThreshold) {
+				
+				double maxRate = 0;
+				int mergeWith = -1;
+				for (int j = 0; j < uniqueMappedOld.size(); j ++) {
+					
+					String sj = uniqueMappedOld.get(j);
+					if (statesBelowThreshold.contains(sj)) continue;
+							
+					
+					// Find the high-frequency state which has the largest rate with this one
+					double rate = getTransitionRate(state, sj, tracelog, asciiMapping);
+					if (rate > maxRate) {
+						maxRate = rate;
+						mergeWith = j;
+					}
+					
+				}
+				
+				if (mergeWith == -1) {
+					Log.warning("Error: count not map low frequency state '" + state + "' because it does not have any non-zero rates in the rate matrix");
+					errorCount++;
+				}else {
+					String merge = uniqueMappedOld.get(mergeWith);
+					uniqueMapped.remove(state);
+					
+					
+					// Remap all symbols which were mapped to this state
+					for (String symbol : phonemes.keySet()) {
+						if (phonemeMapping.get(symbol).equals(state)) {
+							phonemeMapping.put(symbol, merge);
+						}
+					}
+					
+					Log.warning("Merging '" + state + "' into '" + merge + "' because they have a high rate (" + maxRate + ")");
+				}
+				
+				
+				
+				
+			}
+			
+			
+			
+			
+		}
+		
+		
 		
 		// Output
 		PrintStream out = System.out;
@@ -312,7 +444,7 @@ public class ConvertToIPA extends Runnable {
 		
 
 		
-		Collections.sort(uniqueMapped);
+		
 		
 		
 		Log.warning(uniqueMapped.size() + " phonemes down from " + phonemes.size() + ". Values: " + uniqueMapped);
@@ -339,6 +471,16 @@ public class ConvertToIPA extends Runnable {
 		return phoneme2;
 	}
 	
+	
+	 /**
+     * Round to to sf
+     */
+	public static double sf(double d, int sf) {
+    	BigDecimal bd = new BigDecimal(d);
+    	bd = bd.round(new MathContext(sf));
+    	return bd.doubleValue();
+    }
+
 	
 	/**
 	 * Check if the phoneme is a consonant
@@ -520,6 +662,101 @@ public class ConvertToIPA extends Runnable {
         return temp;
 		
 		
+	}
+	
+	
+	/**
+	 * Get mean transition rate between a and b from rates file
+	 * @param a
+	 * @param b
+	 * @return
+	 */
+	private double getTransitionRate(String a, String b, LogAnalyser tracelog, Map<String, String> asciiMapping) {
+		
+		
+		boolean print = false;// (a.equals("oː"));
+		if (print) {
+			Log.warning("XXX " + a + "," + b);
+		}
+		
+		a = a.toUpperCase();
+		b = b.toUpperCase();
+		if (a.length() == 1) a = a + ".";
+		if (b.length() == 1) b = b + ".";
+		
+		
+		// No diamonds
+		String aColon = a.replaceAll("ː", ":");
+		String bColon = b.replaceAll("ː", ":");
+		
+
+		
+		if (print) {
+			Log.warning("YYY " + a + "," + b);
+		}
+		
+		List<String> traceLabels = tracelog.getLabels();
+		int n = traceLabels.size();
+		for (int i = 0; i < n; i++) {
+			
+			String label = traceLabels.get(i); // Example input: rates.consonants0.<=>4.
+			String to = label.replaceAll(".+<[=]>", "");
+			to = to.substring(0, 2); // First 2 digits
+			String from = label.replaceAll("<[=]>.+", "");
+			from = from.substring(from.length() - 2, from.length()); // Last 2 digits
+			
+		
+			
+			// Mapping to non-ascii?
+			if (asciiMapping != null) {
+				if (asciiMapping.containsKey(to.toLowerCase())) {
+					//if (print) Log.warning("Mapping to rate '" + to + "' to '" + asciiMapping.get(to.toLowerCase()) + "'");
+					to = asciiMapping.get(to.toLowerCase());
+				}
+				if (asciiMapping.containsKey(from.toLowerCase())) {
+					//if (print)Log.warning("Mapping from rate '" + from + "' to '" + asciiMapping.get(from.toLowerCase()) + "'");
+					from = asciiMapping.get(from.toLowerCase());
+				}
+				
+			}
+			
+			
+			to = to.toUpperCase();
+			from = from.toUpperCase();
+			
+			
+			if (print) {
+				Log.warning("from " + from + "<=>" + to);
+			}
+			
+			if ( (to.equals(a) && from.equals(b)) ||  (to.equals(b) && from.equals(a))  ) {
+				Double [] trace = tracelog.getTrace(label);
+				double mean = mean(trace);
+				//Log.warning(a + " <=> " + b + " has a mean rate of " + mean);
+				return mean;
+			}
+			
+			// Colons not diamonds?
+			if ( (to.equals(aColon) && from.equals(bColon)) ||  (to.equals(bColon) && from.equals(aColon))  ) {
+				Double [] trace = tracelog.getTrace(label);
+				double mean = mean(trace);
+				//Log.warning(a + " <=> " + b + " has a mean rate of " + mean);
+				return mean;
+			}
+			
+		}
+		
+		
+		//Log.warning("could not find transition between " + a + " and " + b);
+		return 0;
+	}
+	
+	private double mean(Double[] trace) {
+		double sum = 0;
+		for (double d : trace) {
+			sum += d;
+		}
+		return sum / trace.length;
 	}
 	
 	
