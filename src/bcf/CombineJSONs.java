@@ -51,6 +51,10 @@ public class CombineJSONs extends Runnable {
 		JSONObject json = new JSONObject();
 		
 		
+		int nVowels = 0;
+		int nConsonants = 0;
+		String operators = "";
+		
 		// Get list of states from the sequences
 		List<String> phonemes = new ArrayList<>();
 		List<String> vowels = new ArrayList<>();
@@ -67,6 +71,17 @@ public class CombineJSONs extends Runnable {
 			String sequences = obj.getString("sequences");
 			json.append(languageID, sequences);
 			
+			// Vowel consonant count
+			nVowels += obj.getInt("n-vowel-sites");
+			nConsonants += obj.getInt("n-consonant-sites");
+			
+			operators += "<operator id='mutationRateDelta." + languageID + "' spec='beast.evolution.operators.DeltaExchangeOperator' weight='5'>\n" +
+						        "<parameter idref='mutationRate.s:consonants:" + languageID + "'/>\n" +
+						        "<parameter idref='mutationRate.s:vowels:" + languageID + "'/>\n" +
+						        "<weightvector spec='beast.core.parameter.IntegerParameter' value='" + obj.getInt("n-vowel-sites") + " " + obj.getInt("n-consonant-sites") + "' />\n" +
+					      "</operator>\n";
+			
+			
 			
 			// Load vowel and consonant datatypes from json
 			String datatype_vowels_M2 = obj.getString("datatype_vowels_M2");
@@ -80,7 +95,7 @@ public class CombineJSONs extends Runnable {
 					String symbol = pair.split("[=]")[0];
 					
 					// Get vowel and consonant symbols (assuming that codeLen = 2)
-					if (symbol.equals("..") || symbol.equals("-.")) continue;
+					if (symbol.equals("..") || symbol.equals("-.") || symbol.equals(TSV2JSON.WILDCARD_VOWEL) || symbol.equals(TSV2JSON.WILDCARD_CONSONANT)) continue;
 					
 					if (dataType.equals(datatype_vowels_M2) && !vowels.contains(symbol)) {
 						vowels.add(symbol);
@@ -122,16 +137,18 @@ public class CombineJSONs extends Runnable {
 			// Add gaps
 			list.add("..");
 			list.add("-.");
+			list.add(TSV2JSON.WILDCARD_VOWEL);
+			list.add(TSV2JSON.WILDCARD_CONSONANT);
 			
 			int nsymbols = list.size();
-			int nstates = nsymbols - 2; // Minus gaps
+			int nstates = nsymbols - 4; // Minus gaps
 			String codeMap = "";
 			for (int i = 0; i < nsymbols; i ++) {
 				String symbol = list.get(i);
 				String states = "";
 				
 				// Ambiguous
-				if (symbol.equals("..") || symbol.equals("-.")) {
+				if (symbol.equals("..") || symbol.equals("-.") || symbol.equals(TSV2JSON.WILDCARD_VOWEL) || symbol.equals(TSV2JSON.WILDCARD_CONSONANT)) {
 					for (int j = 0; j < nstates; j ++) {
 						states += j;
 						if (j < nstates-1) states += " ";
@@ -160,6 +177,15 @@ public class CombineJSONs extends Runnable {
 			
 		}
 		json.put("languages", String.join(",", languages));
+		
+		
+		// Sum vowel and consonant counts
+		json.put("n-vowel-sites", nVowels);
+		json.put("n-consonant-sites", nConsonants);
+		json.put("deltaExchange", operators);
+		
+		
+		
 		
 		
 		PrintStream out = System.out;

@@ -50,7 +50,7 @@ public class ConvertToIPA extends Runnable {
 			("p b t d ʈ ɖ c ɟ k g q ɢ ʔ m ɱ n ɳ ɲ ŋ ɴ ʙ r ʀ ⱱ ɾ ɽ ɸ β f v θ ð s z ʃ ʒ ʂ ʐ ç ʝ x ɣ χ ʁ ħ ʕ h ɦ ɬ ɮ ʋ ɹ ɻ j ɰ l ɭ ʎ ʟ ɫ " + // Pulmonic
 			"ʘ ǀ ǃ ǂ ǁ ɓ ɗ ʄ ɠ ʛ ʼ pʼ tʼ kʼ sʼ " + // Non-pulmonic
 			"ʍ w ɥ ʜ ʢ ʡ ɕ ʑ ɺ ɧ " + // Other
-			"ts dz tʃ dʒ ʨ ʥ ɝ".toLowerCase()).split(" ") ; // Additional symbols
+			"ts dz tʃ dʒ ʨ ʥ ɝ tɬ".toLowerCase()).split(" ") ; // Additional symbols. Also added tɬ
 	
 	
 	final static String[] VOWELS =
@@ -145,6 +145,11 @@ public class ConvertToIPA extends Runnable {
 				Log.warning("User mapping from '" + phonemeDataset + "' to '" + phoneme + "'");
 			}
 			
+			
+			
+			if (phoneme.equals("ɡ")) {
+				Log.warning("Warning: detected non-ascii 'ɡ'. Please use the ascii 'g'");
+			}
 			
 			//Log.warning(phoneme);
 			// Length check
@@ -265,6 +270,10 @@ public class ConvertToIPA extends Runnable {
 					}
 					
 				}
+				
+				
+				
+				
 				Log.warning("Error: '" + phoneme + "' is not IPA!");
 				unMapped.add(phonemeDataset);
 				errorCount++;
@@ -329,8 +338,79 @@ public class ConvertToIPA extends Runnable {
 		
 		
 		
-		// Merge low states
-		if (this.rateLogInput.get() != null) {
+		// Suppress low states
+		if (this.rateLogInput.get() == null) {
+			
+
+			List<String> uniqueMappedOld = new ArrayList<>();
+			for (String x : uniqueMapped) uniqueMappedOld.add(x);
+			
+			// Map each low frequency state to its most similar one
+			for (String state : statesBelowThreshold) {
+				
+				int mergeWith = -1;
+				for (int j = 0; j < uniqueMappedOld.size(); j ++) {
+					
+					String sj = uniqueMappedOld.get(j);
+					if (statesBelowThreshold.contains(sj)) continue;
+							
+					
+					// Convert from long to short?
+					if (removeLong(state, false).equals(sj)) {
+						mergeWith = j;
+						break;
+					}
+					
+				}
+				
+				if (mergeWith == -1) {
+					
+					// Make it a gap
+					String wildCard;
+					if (isConsonant(state, false)) {
+						wildCard = TSV2JSON.WILDCARD_CONSONANT;
+						Log.warning("Discarding '" + state + "' by treating as consonant wildcard '" + wildCard + "'");
+					}else {
+						wildCard = TSV2JSON.WILDCARD_VOWEL;
+						Log.warning("Discarding '" + state + "' by treating as vowel wildcard '" + wildCard + "'");
+					}
+					
+					// Remap all symbols which were mapped to this state
+					for (String symbol : phonemes.keySet()) {
+						if (phonemeMapping.get(symbol).equals(state)) {
+							phonemeMapping.put(symbol, wildCard);
+						}
+					}
+					
+					
+					
+				}else {
+					
+					String merge = uniqueMappedOld.get(mergeWith);
+					
+					// Remap all symbols which were mapped to this state
+					for (String symbol : phonemes.keySet()) {
+						if (phonemeMapping.get(symbol).equals(state)) {
+							phonemeMapping.put(symbol, merge);
+						}
+					}
+					
+					Log.warning("Merging '" + state + "' into '" + merge + "' from long to short sound");
+				}
+				
+				
+				uniqueMapped.remove(state);
+				
+				
+				
+			}
+			
+			
+		}
+		
+		
+		// Merge low states according to rate matrix
+		else {
 			
 			
 			// Open rate log file
@@ -341,20 +421,7 @@ public class ConvertToIPA extends Runnable {
 				TSV2JSON.processMapping(asciiInput.get(), asciiMapping, true, true);
 			}
 			
-			/*
-			double[][] rateMatrix = new double[uniqueMapped.size()][uniqueMapped.size()];
-			for (int i = 0; i < uniqueMapped.size(); i ++) {
-				String si = uniqueMapped.get(i);
-				for (int j = i+1; j < uniqueMapped.size(); j ++) {
-					String sj = uniqueMapped.get(j);
-					double rate = getTransitionRate(si, sj, tracelog, asciiMapping);
-					rateMatrix[i][j] = rate;
-					rateMatrix[j][i] = rateMatrix[i][j];
-				}
-				
-			}
-			*/
-			
+		
 			
 			List<String> uniqueMappedOld = new ArrayList<>();
 			for (String x : uniqueMapped) uniqueMappedOld.add(x);
@@ -380,7 +447,7 @@ public class ConvertToIPA extends Runnable {
 				}
 				
 				if (mergeWith == -1) {
-					Log.warning("Error: count not map low frequency state '" + state + "' because it does not have any non-zero rates in the rate matrix");
+					Log.warning("Error: could not map low frequency state '" + state + "' because it does not have any non-zero rates in the rate matrix");
 					errorCount++;
 				}else {
 					String merge = uniqueMappedOld.get(mergeWith);

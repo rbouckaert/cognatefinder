@@ -38,22 +38,34 @@ public class TSV2JSON extends TSV2Nexus {
 	
 	final public Input<Integer> minTaxaPerCognateInput = new Input<>("min", "Minimum number of taxa per cognate for the cognate tree to be included", 2);
 	
+	final static String WILDCARD_VOWEL      = "*.";
+	final static String WILDCARD_CONSONANT      = "#.";
 	final static String GAPS      = "-._";
-	final static String VOWEL     = "aᴀãɑáàāǎâäăạаåɛæɜɐʌeᴇəɘɤèéēěêɚǝẽĕḛεеęȇëƐiɪɨɿʅɯĩíǐìîīıĭḭɩïịๅœɞɔøɵoõóòōɶôɷǒöŏʮọȯốǫṍyỹṳṵʏʉuᴜʊúùũüŭǔụūỳûýўȗṹ";
+	final static String VOWEL     = "aᴀãɑáàāǎâäăạаåɛæɜɐʌeᴇəɘɤèéēěêɚǝẽĕḛεеęȇëƐiɪɨɿʅɯĩíǐìîīıĭḭɩïịๅœɞɔøɵoõóòōɶôɷǒöŏʮọȯốǫṍyỹṳṵʏʉuᴜʊúùũüŭǔụūỳûýўȗṹ" + WILDCARD_VOWEL.substring(0,1);
 	
 	Map<String, String> phonemeMapping = new HashMap<>();
 	Map<String, String> encodingMapping = new HashMap<>();
 	Map<String, String> languageMapping = new HashMap<>();
 	List<String> conceptRemoval = new ArrayList<>();
 	
+	
+	// Sonority scores. See Table 2 of
+	// https://journals.sagepub.com/doi/abs/10.1177/1069397103259439
+	Map<String, Integer> sonorityScores = new HashMap<>();
+	
 	@Override
 	public void initAndValidate() {
 		matrix = new DolgoScore();
 		matrix = new SCAScore();
+		
+		this.initSonorityScores();
+
 
 	}
 
 	
+
+
 	String [] token;
 	String [] conceptList;
 	int [] cogid;
@@ -76,6 +88,9 @@ public class TSV2JSON extends TSV2Nexus {
 	List<String> cognateNumberRangeAbove;
 	List<String> cognateNumberRangeBelow;
 	List<List<String>> taxaPerCognate;
+	
+	
+	
 	
 	
 	@Override
@@ -172,12 +187,13 @@ public class TSV2JSON extends TSV2Nexus {
 			conceptList = importer.getColumn("PARAMETER_ID");
 		}
 		
+		
 		// Word tokens
 		token = importer.getColumn("TOKENS");
 		if (token == null ) {
 			token = importer.getColumn("SEGMENTS");
 		}
-		
+		if (token == null) throw new IllegalArgumentException("Cannot find a column named TOKENS / SEGMENTS");
 		
 		// Standardise tokens (which have not been removed)
 		standardiseTokens(token);
@@ -188,8 +204,9 @@ public class TSV2JSON extends TSV2Nexus {
 		if (doculect == null) {
 			doculect = importer.getColumn("LANGUAGE_ID");
 		}
+		if (doculect == null) throw new IllegalArgumentException("Cannot find a column named DOCULECT / LANGUAGE_ID");
 		
-		// Mapping?
+		// Language name mapping?
 		for (int i = 0; i < doculect.length; i++) {
 			Log.warning(doculect[i]);
 			if (languageMapping.containsKey(doculect[i])) {
@@ -210,6 +227,7 @@ public class TSV2JSON extends TSV2Nexus {
 		cogid = importer.getColumnAsInt("COGID");
 		if (cogid == null ) {
 			String [] cognacy = importer.getColumn("COGNACY");
+			if (cognacy == null) throw new IllegalArgumentException("Cannot find a column named COGID / COGNACY");
 			cogid = new int[conceptList.length];
 			Map<String,Integer> conceptmap = new HashMap<>();
 			for (int i = 0; i < cogid.length; i++) {
@@ -224,6 +242,7 @@ public class TSV2JSON extends TSV2Nexus {
 				}
 			}
 		}
+		if (cogid == null) throw new IllegalArgumentException("Cannot find a column named COGID / COGNACY");
 		
 		/*
 		for (int i = 0; i < cogid.length; i ++) {
@@ -484,18 +503,34 @@ public class TSV2JSON extends TSV2Nexus {
 	}
 		
 	private void output() throws FileNotFoundException {
-		// output results
-		StringBuilder buf = new StringBuilder();
-		buf.append("{");
-		buf.append("\"sequences\":\"\n");
-
+		
 		PrintStream out = System.out;
 		if (outputInput.get() != null && !outputInput.get().getName().equals("[[none]]")) {
 			Log.warning("Writing to file " + outputInput.get().getName());
 			out = new PrintStream(outputInput.get());
 		}
-
 		
+		
+		// output results
+		StringBuilder buf = new StringBuilder();
+		buf.append("{");
+		
+		// Sonority score of each language
+		double meanScore = 0;
+		int numSonority = 0;
+		for (int i = 0; i < docIds.length; i++) {
+			if (docIds[i] != null) {
+				double score = this.getSonorityScoreOfSequence(sequence[i]);
+				buf.append("\"sonority-" + docIds[i] + "\":" + (Math.round(1000*score)/1000.0) + ",\n");
+				meanScore += score;
+				numSonority ++;
+			}
+		}
+		meanScore = meanScore / numSonority;
+		buf.append("\"mean-sonority\":" + (Math.round(1000*meanScore)/1000.0) + ",\n");
+		
+		
+		buf.append("\"sequences\":\"\n");
 		Set<String> phonemes = new LinkedHashSet<>();
 		Set<String> vowels = new LinkedHashSet<>();
 		Set<String> consonants = new LinkedHashSet<>();
@@ -532,21 +567,53 @@ public class TSV2JSON extends TSV2Nexus {
 			}
 		}
 		buf.append("\",\n");
-
+		
+		
+		
+		// Count the number of vowel / consonant sites
+		int nVowelSites = countSites(sequence, vowels);
+		int nConsonantSites = countSites(sequence, consonants);
+		buf.append("\"n-vowel-sites\":\"" + nVowelSites + "\",\n");
+		buf.append("\"n-consonant-sites\":\"" + nConsonantSites + "\",\n");
+		buf.append("\"vowel-consonant-ratio\":\"" + 1.0*nVowelSites/nConsonantSites + "\",\n");
+		
+		
+		
 		//buf.append("// _. = gap between words, .. = other cognate, -. = gap due to alignment\n");
 		appendDataType(phonemes, "phonemes", buf);
 		appendDataType(vowels, "vowels", buf);
 		appendDataType(consonants, "consonants", buf);
 
 		// remove ".." representing other cognates
-		appendDataTypeWithMissing(phonemes, "phonemes", buf, "..", 1);
-		appendDataTypeWithMissing(vowels, "vowels", buf, "..", 1);
-		appendDataTypeWithMissing(consonants, "consonants", buf, "..", 1);
+		appendDataTypeWithMissing(phonemes, "phonemes", buf, new String[] { ".." } , 1);
+		appendDataTypeWithMissing(vowels, "vowels", buf, new String[] { ".." } , 1);
+		appendDataTypeWithMissing(consonants, "consonants", buf, new String[] { ".." } , 1);
 		
 		// remove ".-" representing missing data due to alignment
-		appendDataTypeWithMissing(phonemes, "phonemes", buf, "-.", 2);
-		appendDataTypeWithMissing(vowels, "vowels", buf, "-.", 2);
-		appendDataTypeWithMissing(consonants, "consonants", buf, "-.", 2);
+		appendDataTypeWithMissing(phonemes, "phonemes", buf, new String[] { "..", "-.", WILDCARD_CONSONANT, WILDCARD_VOWEL } , 2);
+		appendDataTypeWithMissing(vowels, "vowels", buf, new String[] { "..", "-.", WILDCARD_CONSONANT, WILDCARD_VOWEL } , 2);
+		appendDataTypeWithMissing(consonants, "consonants", buf, new String[] { "..", "-.", WILDCARD_CONSONANT, WILDCARD_VOWEL } , 2);
+		
+		
+		// Sonority score mapping for vowels
+		String[] sonority = new String[vowels.size()];
+		int phonemeNum = 0;
+		for (String p : vowels) {
+			int score = getSonorityScoreOfState(p, encodingMapping);
+			sonority[phonemeNum] = p.toUpperCase() + "=" + score;
+			phonemeNum++;
+		}
+		buf.append("\"vowel-sonority\":\"" + String.join(",", sonority) + "\",\n");
+		
+		// Consonants
+		sonority = new String[consonants.size()];
+		phonemeNum = 0;
+		for (String p : consonants) {
+			int score = getSonorityScoreOfState(p, encodingMapping);
+			sonority[phonemeNum] = p.toUpperCase() + "=" + score;
+			phonemeNum++;
+		}
+		buf.append("\"consonant-sonority\":\"" + String.join(",", sonority) + "\",\n");
 
 		buf.append("\"words\":\"");
 		for (int i = 0; i < concept.length; i++) {
@@ -621,6 +688,7 @@ public class TSV2JSON extends TSV2Nexus {
 		buf.append("\"meaning-classes-tree\":\"");
 		buf.append(String.join(",", conceptsFiltered));
 		buf.append("\",\n");
+		
 		
 		
 		
@@ -771,9 +839,38 @@ public class TSV2JSON extends TSV2Nexus {
 		buf.append("\"\n}\n");
 		
 		out.println(buf.toString());
+		
+		
+		Log.warning("Built alignment with " + nVowelSites + " vowel sites and " + nConsonantSites + " consonants. Ratio: " + 1.0*nVowelSites/nConsonantSites);
+		
 
 	}
 		
+
+	/**
+	 * Count the number of sites which have one of these characters
+	 * @param sequences
+	 * @param characters
+	 * @return
+	 */
+	private int countSites(String[] sequences, Set<String> characters) {
+		int count = 0;
+		for (int siteNum = 0; siteNum < sequences[0].length(); siteNum++) {
+			if (siteNum % 2 == 1) continue;
+			for (int taxonNum = 0; taxonNum < sequence.length; taxonNum++) {
+				String str = sequences[taxonNum].substring(siteNum, siteNum+2);
+				if (str.equals("..") || str.equals("-.") || str.equals(WILDCARD_CONSONANT)  || str.equals(WILDCARD_VOWEL)) continue;
+				
+				if (characters.contains(str)) {
+					count++;
+					//Log.warning(str + " is in  " + characters);
+					break;
+				}
+			}
+		}
+		return count;
+	}
+	
 
 	private void standardiseTokens(String[] token) {
 		boolean suppresWordGap = suppresWordGapInput.get();
@@ -922,23 +1019,35 @@ public class TSV2JSON extends TSV2Nexus {
 		
 	}
 
-	private void appendDataTypeWithMissing(Set<String> phonemes, String id, StringBuilder buf, String codeToRemove, int countID) {
-		phonemes.remove(codeToRemove);
+	private void appendDataTypeWithMissing(Set<String> phonemesOrig, String id, StringBuilder buf, String[] codeToRemove, int countID) {
+		
+		List<String> phonemes = new ArrayList<>();
+		for (String str : phonemesOrig) phonemes.add(str);
+		
+		boolean[] removed = new boolean[codeToRemove.length];
+		for (int i = 0; i < codeToRemove.length; i ++) {
+			String str = codeToRemove[i];
+			if (phonemes.contains(str)){
+				removed[i] = true;
+				phonemes.remove(str);
+			}
+			
+		}
+		
 		String [] phonemes_ = phonemes.toArray(new String[]{});
 		buf.append("\"datatype_"+id+"_M" + countID + "\":\"<userDataType id='" + id + "WithMissing' spec='beast.phoneme.UserPhonemeDataType' states='" + phonemes_.length + "' codelength='2' codeMap='");
 		Arrays.sort(phonemes_);
 		int i = 0;
 		for (String s : phonemes_) {
 			buf.append(s.toUpperCase() + "=" + i);
-			buf.append(",");
+			if (i < phonemes_.length-1) buf.append(",");
 			i++;
 		}
-		buf.append("..=");
-		for (i = 0; i < phonemes.size(); i++) {
-			buf.append(i + " ");		
-		}
-		if (!phonemes.contains("-.")) {
-			buf.append(",-.=");
+		
+		for (int j = 0; j < codeToRemove.length; j ++) {
+			String str = codeToRemove[j];
+			//if (!removed[j]) continue;
+			buf.append("," + str + "=");
 			for (i = 0; i < phonemes.size(); i++) {
 				buf.append(i + " ");			
 			}
@@ -974,25 +1083,8 @@ public class TSV2JSON extends TSV2Nexus {
 
 	
 	private String cleanUp(String string) {
-		string = string.replaceAll(" ",".");
-		string = string.replaceAll("\\+","_");
-		if (true) {
-			return string;
-		}
-		// replace infrequently (<10) occurring phonemes by nearest phoneme
-		string = string.replaceAll("ʰn","n.");
-		string = string.replaceAll("ʲk","k.");		
-		string = string.replaceAll("ʰs","s.");
-		string = string.replaceAll("lʰ","l.");
-		string = string.replaceAll("pʰ","p.");
-		string = string.replaceAll("ᵐb","b.");
-
-		string = string.replaceAll("tʃ","s.");
-		string = string.replaceAll("ʰl","l.");
-		string = string.replaceAll("kʰ","k.");
-		string = string.replaceAll("ɣ","g");
-		string = string.replaceAll("ʰm","m.");
-
+		string = string.replaceAll(" ", ".");
+		string = string.replaceAll("\\+", "-"); // From "_" to "-"
 		return string;
 	}
 
@@ -1042,6 +1134,159 @@ public class TSV2JSON extends TSV2Nexus {
 		}
 		return len;
 	}
+	
+	
+	
+	/**
+	 * Get the sonority score of a sequence
+	 * @param sequence
+	 * @return
+	 */
+	private double getSonorityScoreOfSequence(String sequence) {
+		
+		int scoredSites = 0;
+		int score = 0;
+		for (int siteNum = 0; siteNum < sequence.length(); siteNum += 2) {
+			String state = sequence.substring(siteNum, siteNum+2);
+			int stateScore = getSonorityScoreOfState(state, null);
+			if (stateScore > 0) {
+				score += stateScore;
+				scoredSites ++;
+			}
+		}
+		return 1.0 * score / scoredSites;
+	}
+	
+	
+	private int getSonorityScoreOfState(String state, Map<String,String> encodingMap) {
+		
+		if (encodingMap != null) {
+			if (encodingMap.containsValue(state)) {
+				for (String key : encodingMap.keySet()) {
+					if (encodingMap.get(key).equals(state)) {
+						state = key;
+					}
+				}
+			}
+		}
+		
+		state = state.toLowerCase();
+		if (state.equals("..") || state.equals("-.") || state.equals(WILDCARD_VOWEL) || state.equals(WILDCARD_CONSONANT)) return 0;
+		if (state.substring(1, 2).equals(".")) {
+			state = state.substring(0, 1);
+		}
+		if (!sonorityScores.containsKey(state)) {
+			Log.warning("Warning: cannot find sonority score for " + state + "!");
+			return 0;
+		}else {
+			return sonorityScores.get(state);
+		}
+		
+	}
+
+	/**
+	 * Initialise sonority scores
+	 * https://journals.sagepub.com/doi/abs/10.1177/1069397103259439
+	 * Fought, John G., et al. "Sonority and climate in a world sample of languages: Findings and prospects." Cross-cultural research 38.1 (2004): 27-51.
+	 */
+	private void initSonorityScores() {
+		
+		sonorityScores = new HashMap<>();
+		
+		// High=close, low=open
+		
+		// Low vowels A
+		for (String phoneme : "ɑ ɒ ɔ æ ɐ ɶ a ʌ".split(" ")) {
+			int score = 100;
+			sonorityScores.put(phoneme, score);
+			sonorityScores.put(phoneme+":", 2*score);
+			sonorityScores.put(phoneme+"ː", 2*score);
+		}
+		
+		// Mid back vowels O
+		for (String phoneme : "o ɤ".split(" ")) {
+			int score = 80;
+			sonorityScores.put(phoneme, score);
+			sonorityScores.put(phoneme+":", 2*score);
+			sonorityScores.put(phoneme+"ː", 2*score);
+		}
+		
+		// Mid non-back vowels E
+		for (String phoneme : "e ɛ œ ɜ ɞ ɚ ɘ ə ɵ ø".split(" ")) {
+			int score = 69;
+			sonorityScores.put(phoneme, score);
+			sonorityScores.put(phoneme+":", 2*score);
+			sonorityScores.put(phoneme+"ː", 2*score);
+		}
+		
+		// High-back vowels U
+		for (String phoneme : "u ɯ ʊ".split(" ")) {
+			int score = 65;
+			sonorityScores.put(phoneme, score);
+			sonorityScores.put(phoneme+":", 2*score);
+			sonorityScores.put(phoneme+"ː", 2*score);
+		}
+		
+		
+		
+		// High back semivowels W. https://en.wikipedia.org/wiki/Semivowel
+		for (String phoneme : "w ɰ".split(" ")) sonorityScores.put(phoneme, 43);
+		
+		// High non-back vowels I
+		for (String phoneme : "i ɪ ɨ ʉ y ʏ".split(" ")) {
+			int score = 41;
+			sonorityScores.put(phoneme, score);
+			sonorityScores.put(phoneme+":", 2*score);
+			sonorityScores.put(phoneme+"ː", 2*score);
+		}
+		
+		// Rhotic consonants R. https://en.wikipedia.org/wiki/Rhotic_consonant
+		for (String phoneme : "r ɹ ʀ ʁ ɾ ɻ ɽ ɺ ɝ ʙ ʢ".split(" ")) sonorityScores.put(phoneme, 36);
+		
+		// High front semivowels Y. https://en.wikipedia.org/wiki/Semivowel
+		for (String phoneme : "j ɥ".split(" ")) sonorityScores.put(phoneme, 27);
+		
+		// Lateral sonorants L. https://en.wikipedia.org/wiki/Lateral_consonant
+		for (String phoneme : "l ɭ ʎ ʟ ɫ tɬ ɬ ʄ ɮ".split(" ")) sonorityScores.put(phoneme, 17);
+		
+		// Nasal sonorants N. https://en.wikipedia.org/wiki/Nasal_consonant
+		for (String phoneme : "m ɱ n ɳ ɲ ŋ ɴ".split(" ")) sonorityScores.put(phoneme, 9);
+		
+		// Voiceless fricatives S. https://en.wikipedia.org/wiki/Fricative
+		for (String phoneme : "s f ʃ ʂ ɕ ɸ θ ç x ɧ ħ χ ʜ h ʍ".split(" ")) sonorityScores.put(phoneme, 4);
+		
+		// Voiced fricatives Z. https://en.wikipedia.org/wiki/Fricative
+		for (String phoneme : "z ʐ ð v ⱱ ʋ β ɣ ʝ ɦ ʕ ʒ ʑ".split(" ")) sonorityScores.put(phoneme, 3);
+		
+		// Stops D/T. https://en.wikipedia.org/wiki/Plosive
+		for (String phoneme : "p b t d k g c q ʡ ɖ ɢ ʔ ɟ ʈ d̠".split(" ")) sonorityScores.put(phoneme, 2);
+		
+		
+		// In original paper, affricates and long vowels were split into sequences
+		// eg. dʒ is d + ʒ
+		for (String phoneme : "ts dz tʃ dʒ ʥ ʨ".split(" ")) {
+			
+			String part1 = ""; 
+			String part2 = ""; 
+			if (phoneme.equals("ʥ")) {
+				part1 = "d"; 
+				part2 = "ɕ";
+			} else if (phoneme.equals("ʨ")) {
+				part1 = "t"; 
+				part2 = "ʑ";
+			}else {
+				part1 = phoneme.substring(0, 1);
+				part2 = phoneme.substring(1, 2);
+			}
+			int score = sonorityScores.get(part1) + sonorityScores.get(part2);
+			sonorityScores.put(phoneme, score);
+		}
+
+	}
+	
+	
+	
+	
 
 
 	public static void main(String[] args) throws Exception {
