@@ -596,22 +596,22 @@ public class TSV2JSON extends TSV2Nexus {
 		
 		
 		// Sonority score mapping for vowels
-		String[] sonority = new String[vowels.size()];
-		int phonemeNum = 0;
+		List<String> sonority = new ArrayList<>();
 		for (String p : vowels) {
 			int score = getSonorityScoreOfState(p, encodingMapping);
-			sonority[phonemeNum] = p.toUpperCase() + "=" + score;
-			phonemeNum++;
+			if (score > 0) {
+				sonority.add(p.toUpperCase() + "=" + score);
+			}
 		}
 		buf.append("\"vowel-sonority\":\"" + String.join(",", sonority) + "\",\n");
 		
 		// Consonants
-		sonority = new String[consonants.size()];
-		phonemeNum = 0;
+		sonority = new ArrayList<>();
 		for (String p : consonants) {
 			int score = getSonorityScoreOfState(p, encodingMapping);
-			sonority[phonemeNum] = p.toUpperCase() + "=" + score;
-			phonemeNum++;
+			if (score > 0) {
+				sonority.add(p.toUpperCase() + "=" + score);
+			}
 		}
 		buf.append("\"consonant-sonority\":\"" + String.join(",", sonority) + "\",\n");
 
@@ -1270,10 +1270,10 @@ public class TSV2JSON extends TSV2Nexus {
 			String part2 = ""; 
 			if (phoneme.equals("ʥ")) {
 				part1 = "d"; 
-				part2 = "ɕ";
+				part2 = "ʑ";
 			} else if (phoneme.equals("ʨ")) {
 				part1 = "t"; 
-				part2 = "ʑ";
+				part2 = "ɕ";
 			}else {
 				part1 = phoneme.substring(0, 1);
 				part2 = phoneme.substring(1, 2);
